@@ -77,6 +77,11 @@ def main():
                         help='File extensions to analyze')
     parser.add_argument('--json', action='store_true', help='Output JSON summary')
     parser.add_argument('--output', help='Write JSON or text output to file')
+    parser.add_argument('--compact-output', '-c', default=None,
+                        help='Also write a compact summary JSON (small)')
+    parser.add_argument('--compact-limit', type=int, default=10,
+                        help='Max files to include in compact summary')
+    parser.add_argument('--quiet', action='store_true', help='Minimize stdout (only final messages)')
     parser.add_argument('--threshold', type=float, default=0.95, help='Duplicate similarity threshold')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose logging')
 
@@ -95,9 +100,27 @@ def main():
         if args.output:
             with open(args.output, 'w') as f:
                 f.write(out)
-            print(f"Wrote JSON summary to {args.output}")
+            if not args.quiet:
+                print(f"Wrote JSON summary to {args.output}")
         else:
-            print(out)
+            if not args.quiet:
+                print(out)
+            else:
+                # when quiet and printing to stdout, still print minimal summary
+                print(json.dumps({'total_files': summary.get('total_files'), 'total_records': summary.get('total_records')}))
+        # write compact if requested
+        if args.compact_output:
+            compact = {'total_files': summary.get('total_files'), 'total_records': summary.get('total_records')}
+            # prefer files with errors, then largest by record count
+            files = []
+            for name, tpl in analyzer.templates.items():
+                files.append({'file': name, 'records': len(tpl.records), 'errors': analyzer.errors.get(name)})
+            files.sort(key=lambda x: ((0 if x.get('errors') else 1), -x['records']))
+            compact['top_files'] = files[:args.compact_limit]
+            with open(args.compact_output, 'w') as f:
+                json.dump(compact, f, indent=2)
+            if not args.quiet:
+                print(f"Wrote compact summary to {args.compact_output}")
         return
 
     # Human-readable output
@@ -110,13 +133,31 @@ def main():
                 f.write('DUPLICATE PAIRS:\n')
                 for a, b, score in duplicates:
                     f.write(f"  {a}  <->  {b}  ({score*100:.1f}% similar)\n")
-        print(f"Wrote report to {args.output}")
+        if not args.quiet:
+            print(f"Wrote report to {args.output}")
     else:
-        print(analyzer.generate_report())
-        if duplicates:
-            print('\nDUPLICATE PAIRS:')
-            for a, b, score in duplicates:
-                print(f"  {a}  <->  {b}  ({score*100:.1f}% similar)")
+        if not args.quiet:
+            print(analyzer.generate_report())
+            if duplicates:
+                print('\nDUPLICATE PAIRS:')
+                for a, b, score in duplicates:
+                    print(f"  {a}  <->  {b}  ({score*100:.1f}% similar)")
+        else:
+            # quiet mode: print minimal summary
+            print(json.dumps({'total_files': summary.get('total_files'), 'total_records': summary.get('total_records')}))
+
+    # write compact summary when requested even for human report mode
+    if args.compact_output:
+        compact = {'total_files': summary.get('total_files'), 'total_records': summary.get('total_records')}
+        files = []
+        for name, tpl in analyzer.templates.items():
+            files.append({'file': name, 'records': len(tpl.records), 'errors': analyzer.errors.get(name)})
+        files.sort(key=lambda x: ((0 if x.get('errors') else 1), -x['records']))
+        compact['top_files'] = files[:args.compact_limit]
+        with open(args.compact_output, 'w') as f:
+            json.dump(compact, f, indent=2)
+        if not args.quiet:
+            print(f"Wrote compact summary to {args.compact_output}")
 
 
 if __name__ == '__main__':

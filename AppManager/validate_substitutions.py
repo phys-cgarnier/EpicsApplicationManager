@@ -14,6 +14,11 @@ def main():
     parser = argparse.ArgumentParser(description='Validate .substitutions files recursively')
     parser.add_argument('root', nargs='?', default='.', help='Root directory to search')
     parser.add_argument('-o', '--output', default='validation_summary.json', help='Output JSON file')
+    parser.add_argument('--compact-output', '-c', default=None,
+                        help='Also write a compact summary JSON (small)')
+    parser.add_argument('--compact-limit', type=int, default=10,
+                        help='Max files to include in compact summary')
+    parser.add_argument('--quiet', action='store_true', help='Minimize stdout (only final summary)')
     parser.add_argument('--fail-on-issues', action='store_true', help='Exit with code 1 if any issues found')
     args = parser.parse_args()
 
@@ -36,7 +41,8 @@ def main():
     results = []
 
     for path in files:
-        print(f"Validating {path}")
+        if not args.quiet:
+            print(f"Validating {path}")
         try:
             res = engine.validate_substitution_file(str(path))
         except Exception as e:
@@ -65,8 +71,31 @@ def main():
     with out_path.open('w') as f:
         json.dump(out, f, indent=2)
 
+        # Optionally write a compact summary for quick verification / CI use
+        if args.compact_output:
+            compact = {'summary': summary}
+            # select top files by issue_count
+            files_with_issues = [r for r in results if r.get('issue_count')]
+            files_with_issues.sort(key=lambda r: r.get('issue_count', 0), reverse=True)
+            top = []
+            for r in files_with_issues[:args.compact_limit]:
+                top.append({
+                    'file': r['file'],
+                    'issue_count': r['issue_count'],
+                    'sample_issues': [
+                        { 'severity': i.get('severity') or i.get('level') or 'warning', 'line': i.get('line_number') or i.get('line') or None, 'message': i.get('message') }
+                        for i in (r.get('issues') or [])[:3]
+                    ]
+                })
+            compact['top_files'] = top
+            compact_path = Path(args.compact_output)
+            with compact_path.open('w') as f:
+                json.dump(compact, f, indent=2)
+
     print(f"Validated {summary['files_validated']} files. Total issues: {summary['total_issues']}")
     print(f"Summary written to: {out_path}")
+    if args.compact_output:
+        print(f"Compact summary written to: {compact_path}")
 
     if args.fail_on_issues and summary['total_issues'] > 0:
         sys.exit(1)
