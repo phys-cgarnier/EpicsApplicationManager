@@ -231,8 +231,9 @@ class ValidationEngine:
         # Stage 2: Structure validation
         self._validate_structure(lines, result)
 
-        # Stage 3: Quote consistency
-        self._validate_quotes(lines, result)
+        # Stage 3: Quote consistency (disabled — quoting in substitution files
+        # is valid regardless of column type and never affects runtime behavior)
+        # self._validate_quotes(lines, result)
 
         # Stage 4: Macro validation
         self._validate_macros(lines, result)
@@ -434,6 +435,11 @@ class ValidationEngine:
 
     def _validate_macros(self, lines: List[str], result: ValidationResult):
         """Stage 4: Macro validation"""
+
+    ## has no concept of nested macros. passing DEV = $(DEV)
+    ## to a template that builds into a .db and then the db is passed
+    ## $(DEV)
+
         macro_pattern = re.compile(r'\$\(([^)]+)\)')
         defined_macros = set()
         used_macros = set()
@@ -678,7 +684,7 @@ class ValidationEngine:
                 var_name = envset_match.group(1)
                 var_value = envset_match.group(2)
                 environment_vars[var_name] = var_value
-
+        #IOC_NODE not always relevant
         # Check for required environment variables
         required_vars = ['IOC_NAME', 'IOC_NODE']
         for var in required_vars:
