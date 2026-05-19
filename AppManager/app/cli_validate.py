@@ -106,7 +106,16 @@ def main():
         help="Types to validate",
     )
     p.add_argument("--json", action="store_true", help="Output JSON")
+
+    p.add_argument(
+        "--output",
+        "-o",
+        help="Write JSON output to this file. Requires --json.",
+    )
     args = p.parse_args()
+
+    if args.output and not args.json:
+        p.error("--output/-o requires --json")
 
     engine = ValidationEngine()
 
@@ -128,7 +137,14 @@ def main():
             results.append(tr)
 
     if args.json:
-        print(json.dumps({"results": results}, indent=2))
+        json_text = json.dumps({"results": results}, indent=2)
+
+        if args.output:
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(json_text + "\n")
+        else:
+            print(json_text)
     else:
         # human readable summary
         for r in results:

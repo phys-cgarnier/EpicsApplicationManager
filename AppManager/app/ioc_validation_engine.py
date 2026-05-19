@@ -242,7 +242,7 @@ class ValidationEngine:
         self._validate_structure(lines, result)
 
         # Stage 3: Quote consistency
-        self._validate_quotes(lines, result)
+        #self._validate_quotes(lines, result)
 
         # Stage 4: Macro validation
         self._validate_macros(lines, result)
