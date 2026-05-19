@@ -25,6 +25,7 @@ from datetime import datetime
 @dataclass
 class EPICSRecord:
     """Represents a single EPICS record"""
+
     record_type: str
     record_name: str
     fields: Dict[str, str]
@@ -34,7 +35,7 @@ class EPICSRecord:
     def get_normalized_name(self) -> str:
         """Get record name without macros for comparison"""
         # Remove macro substitutions for comparison
-        return re.sub(r'\$\([^)]+\)', '${MACRO}', self.record_name)
+        return re.sub(r"\$\([^)]+\)", "${MACRO}", self.record_name)
 
     def get_signature(self) -> str:
         """Generate a signature for comparison"""
@@ -46,6 +47,7 @@ class EPICSRecord:
 @dataclass
 class TemplateFile:
     """Represents a complete template file"""
+
     filepath: Path
     records: List[EPICSRecord] = field(default_factory=list)
     macros: Set[str] = field(default_factory=set)
@@ -59,7 +61,7 @@ class TemplateFile:
             signatures[record.get_signature()] += 1
         return dict(signatures)
 
-    def calculate_similarity(self, other: 'TemplateFile') -> float:
+    def calculate_similarity(self, other: "TemplateFile") -> float:
         """Calculate similarity score with another template (0-1)"""
         if not self.records or not other.records:
             return 0.0
@@ -81,11 +83,17 @@ class TemplateAnalyzer:
     """Main analyzer for EPICS template files"""
 
     # Regex patterns for parsing
-    RECORD_PATTERN = re.compile(r'^record\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)\s*{', re.MULTILINE)
-    FIELD_PATTERN = re.compile(r'^\s*field\s*\(\s*(\w+)\s*,\s*"?([^")]+)"?\s*\)', re.MULTILINE)
-    MACRO_PATTERN = re.compile(r'\$\(([^)]+)\)')
+    RECORD_PATTERN = re.compile(
+        r'^record\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)\s*{', re.MULTILINE
+    )
+    FIELD_PATTERN = re.compile(
+        r'^\s*field\s*\(\s*(\w+)\s*,\s*"?([^")]+)"?\s*\)', re.MULTILINE
+    )
+    MACRO_PATTERN = re.compile(r"\$\(([^)]+)\)")
     INCLUDE_PATTERN = re.compile(r'^include\s+"([^"]+)"', re.MULTILINE)
-    INFO_PATTERN = re.compile(r'^\s*info\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)', re.MULTILINE)
+    INFO_PATTERN = re.compile(
+        r'^\s*info\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)', re.MULTILINE
+    )
 
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
@@ -100,16 +108,13 @@ class TemplateAnalyzer:
     def parse_file(self, filepath: Path) -> Optional[TemplateFile]:
         """Parse a single template file"""
         try:
-            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
         except Exception as e:
             self.errors.append(f"Error reading {filepath}: {e}")
             return None
 
-        template = TemplateFile(
-            filepath=filepath,
-            file_type=filepath.suffix
-        )
+        template = TemplateFile(filepath=filepath, file_type=filepath.suffix)
 
         # Find all includes
         for match in self.INCLUDE_PATTERN.finditer(content):
@@ -148,32 +153,36 @@ class TemplateAnalyzer:
                 fields[info_name] = info_match.group(2)
 
             # Get line number
-            line_number = content[:start_pos].count('\n') + 1
+            line_number = content[:start_pos].count("\n") + 1
 
             record = EPICSRecord(
                 record_type=record_type,
                 record_name=record_name,
                 fields=fields,
                 line_number=line_number,
-                raw_content=record_content
+                raw_content=record_content,
             )
 
             template.records.append(record)
 
-        self.log(f"Parsed {filepath.name}: {len(template.records)} records, "
-                f"{len(template.macros)} macros, {len(template.includes)} includes")
+        self.log(
+            f"Parsed {filepath.name}: {len(template.records)} records, "
+            f"{len(template.macros)} macros, {len(template.includes)} includes"
+        )
 
         return template
 
-    def analyze_directory(self, directory: Path, extensions: List[str] = None) -> Dict[str, TemplateFile]:
+    def analyze_directory(
+        self, directory: Path, extensions: List[str] = None
+    ) -> Dict[str, TemplateFile]:
         """Analyze all template files in a directory"""
         if extensions is None:
-            extensions = ['.db', '.vdb', '.template']
+            extensions = [".db", ".vdb", ".template"]
 
         templates = {}
 
         for ext in extensions:
-            for filepath in directory.rglob(f'*{ext}'):
+            for filepath in directory.rglob(f"*{ext}"):
                 self.log(f"Processing {filepath}")
                 template = self.parse_file(filepath)
                 if template:
@@ -199,7 +208,9 @@ class TemplateAnalyzer:
 
         return sorted(duplicates, key=lambda x: x[2], reverse=True)
 
-    def find_similar_records(self, threshold: float = 0.8) -> Dict[str, List[Tuple[str, str]]]:
+    def find_similar_records(
+        self, threshold: float = 0.8
+    ) -> Dict[str, List[Tuple[str, str]]]:
         """Find similar record definitions across files"""
         record_map = defaultdict(list)
 
@@ -235,35 +246,38 @@ class TemplateAnalyzer:
         macros2 = template2.macros
 
         # Generate unified diff of raw content
-        with open(template1.filepath, 'r') as f1, open(template2.filepath, 'r') as f2:
+        with open(template1.filepath, "r") as f1, open(template2.filepath, "r") as f2:
             lines1 = f1.readlines()
             lines2 = f2.readlines()
-            diff = list(difflib.unified_diff(lines1, lines2,
-                                            fromfile=file1, tofile=file2, lineterm=''))
+            diff = list(
+                difflib.unified_diff(
+                    lines1, lines2, fromfile=file1, tofile=file2, lineterm=""
+                )
+            )
 
         return {
             "similarity": template1.calculate_similarity(template2),
             "file1": {
                 "records": len(template1.records),
                 "macros": sorted(macros1),
-                "unique_signatures": sorted(sigs1 - sigs2)
+                "unique_signatures": sorted(sigs1 - sigs2),
             },
             "file2": {
                 "records": len(template2.records),
                 "macros": sorted(macros2),
-                "unique_signatures": sorted(sigs2 - sigs1)
+                "unique_signatures": sorted(sigs2 - sigs1),
             },
             "common": {
                 "signatures": sorted(sigs1 & sigs2),
-                "macros": sorted(macros1 & macros2)
+                "macros": sorted(macros1 & macros2),
             },
-            "diff_preview": diff[:50] if diff else []
+            "diff_preview": diff[:50] if diff else [],
         }
 
     def analyze_vdb_to_db_mapping(self) -> Dict[str, Any]:
         """Analyze relationship between .vdb templates and .db instances"""
-        vdb_files = {k: v for k, v in self.templates.items() if v.file_type == '.vdb'}
-        db_files = {k: v for k, v in self.templates.items() if v.file_type == '.db'}
+        vdb_files = {k: v for k, v in self.templates.items() if v.file_type == ".vdb"}
+        db_files = {k: v for k, v in self.templates.items() if v.file_type == ".db"}
 
         mappings = []
 
@@ -276,23 +290,26 @@ class TemplateAnalyzer:
                 if vdb_base in db_name:
                     similarity = vdb_template.calculate_similarity(db_template)
                     if similarity > 0.5:  # Reasonable threshold
-                        potential_matches.append({
-                            "db_file": db_name,
-                            "similarity": similarity
-                        })
+                        potential_matches.append(
+                            {"db_file": db_name, "similarity": similarity}
+                        )
 
             if potential_matches:
-                mappings.append({
-                    "vdb_template": vdb_name,
-                    "derived_db_files": sorted(potential_matches,
-                                             key=lambda x: x['similarity'],
-                                             reverse=True)
-                })
+                mappings.append(
+                    {
+                        "vdb_template": vdb_name,
+                        "derived_db_files": sorted(
+                            potential_matches,
+                            key=lambda x: x["similarity"],
+                            reverse=True,
+                        ),
+                    }
+                )
 
         return {
             "vdb_count": len(vdb_files),
             "db_count": len(db_files),
-            "mappings": mappings
+            "mappings": mappings,
         }
 
     def find_consolidation_candidates(self) -> List[Dict[str, Any]]:
@@ -309,7 +326,7 @@ class TemplateAnalyzer:
             group = [name1]
             group_signatures = set(r.get_signature() for r in template1.records)
 
-            for j, (name2, template2) in enumerate(template_list[i+1:], i+1):
+            for j, (name2, template2) in enumerate(template_list[i + 1 :], i + 1):
                 if name2 in processed:
                     continue
 
@@ -323,20 +340,25 @@ class TemplateAnalyzer:
 
             if len(group) > 1:
                 # Calculate what percentage of records are common
-                common_record_percentage = len(group_signatures) / len(set(r.get_signature()
-                                         for r in template1.records)) * 100
+                common_record_percentage = (
+                    len(group_signatures)
+                    / len(set(r.get_signature() for r in template1.records))
+                    * 100
+                )
 
-                candidates.append({
-                    "files": group,
-                    "count": len(group),
-                    "common_signatures": len(group_signatures),
-                    "common_percentage": round(common_record_percentage, 1),
-                    "potential_name": self._suggest_template_name(group)
-                })
+                candidates.append(
+                    {
+                        "files": group,
+                        "count": len(group),
+                        "common_signatures": len(group_signatures),
+                        "common_percentage": round(common_record_percentage, 1),
+                        "potential_name": self._suggest_template_name(group),
+                    }
+                )
 
             processed.add(name1)
 
-        return sorted(candidates, key=lambda x: x['count'], reverse=True)
+        return sorted(candidates, key=lambda x: x["count"], reverse=True)
 
     def _suggest_template_name(self, file_group: List[str]) -> str:
         """Suggest a template name for a group of similar files"""
@@ -348,9 +370,9 @@ class TemplateAnalyzer:
 
         # Find common prefix
         common_prefix = os.path.commonprefix(names)
-        if common_prefix and not common_prefix.endswith('_'):
+        if common_prefix and not common_prefix.endswith("_"):
             # Clean up the prefix
-            common_prefix = common_prefix.rstrip('_0123456789')
+            common_prefix = common_prefix.rstrip("_0123456789")
 
         return f"{common_prefix}_template" if common_prefix else "consolidated_template"
 
@@ -392,7 +414,9 @@ class TemplateAnalyzer:
                 for macro in template.macros:
                     macro_count[macro] += 1
 
-            for macro, count in sorted(macro_count.items(), key=lambda x: x[1], reverse=True)[:10]:
+            for macro, count in sorted(
+                macro_count.items(), key=lambda x: x[1], reverse=True
+            )[:10]:
                 report.append(f"    ${macro}: used in {count} files")
         report.append("")
 
@@ -400,7 +424,9 @@ class TemplateAnalyzer:
         duplicates = self.find_duplicates(threshold=0.9)
         report.append("DUPLICATION ANALYSIS:")
         if duplicates:
-            report.append(f"  Found {len(duplicates)} potential duplicate pairs (>90% similar):")
+            report.append(
+                f"  Found {len(duplicates)} potential duplicate pairs (>90% similar):"
+            )
             for file1, file2, similarity in duplicates[:5]:
                 report.append(f"    {file1}")
                 report.append(f"    {file2}")
@@ -414,14 +440,18 @@ class TemplateAnalyzer:
         candidates = self.find_consolidation_candidates()
         report.append("CONSOLIDATION OPPORTUNITIES:")
         if candidates:
-            report.append(f"  Found {len(candidates)} groups that could be consolidated:")
+            report.append(
+                f"  Found {len(candidates)} groups that could be consolidated:"
+            )
             for candidate in candidates[:5]:
                 report.append(f"    Group: {candidate['potential_name']}")
                 report.append(f"      Files: {candidate['count']}")
-                report.append(f"      Common records: {candidate['common_percentage']}%")
-                for file in candidate['files'][:3]:
+                report.append(
+                    f"      Common records: {candidate['common_percentage']}%"
+                )
+                for file in candidate["files"][:3]:
                     report.append(f"        - {file}")
-                if len(candidate['files']) > 3:
+                if len(candidate["files"]) > 3:
                     report.append(f"        ... and {len(candidate['files']) - 3} more")
                 report.append("")
         else:
@@ -431,15 +461,17 @@ class TemplateAnalyzer:
 
         # VDB to DB mapping
         mapping = self.analyze_vdb_to_db_mapping()
-        if mapping['mappings']:
+        if mapping["mappings"]:
             report.append("TEMPLATE TO INSTANCE MAPPING (.vdb -> .db):")
             report.append(f"  Templates (.vdb): {mapping['vdb_count']}")
             report.append(f"  Instances (.db): {mapping['db_count']}")
             report.append(f"  Identified mappings:")
-            for m in mapping['mappings'][:5]:
+            for m in mapping["mappings"][:5]:
                 report.append(f"    {m['vdb_template']}:")
-                for db in m['derived_db_files'][:3]:
-                    report.append(f"      -> {db['db_file']} ({db['similarity']*100:.1f}% similar)")
+                for db in m["derived_db_files"][:3]:
+                    report.append(
+                        f"      -> {db['db_file']} ({db['similarity']*100:.1f}% similar)"
+                    )
                 report.append("")
 
         # Errors
@@ -453,13 +485,13 @@ class TemplateAnalyzer:
 
         report.append("=" * 80)
 
-        return '\n'.join(report)
+        return "\n".join(report)
 
 
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description='EPICS Template Analyzer - Analyze and compare .db, .vdb, and .template files',
+        description="EPICS Template Analyzer - Analyze and compare .db, .vdb, and .template files",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -480,50 +512,69 @@ Examples:
 
   # Generate full report
   %(prog)s report /path/to/db --output report.txt
-        """
+        """,
     )
 
-    subparsers = parser.add_subparsers(dest='command', help='Command to execute')
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     # Analyze command
-    analyze_parser = subparsers.add_parser('analyze', help='Analyze templates in directory')
-    analyze_parser.add_argument('directory', help='Directory containing template files')
-    analyze_parser.add_argument('--extensions', nargs='+',
-                               default=['.db', '.vdb', '.template'],
-                               help='File extensions to analyze')
+    analyze_parser = subparsers.add_parser(
+        "analyze", help="Analyze templates in directory"
+    )
+    analyze_parser.add_argument("directory", help="Directory containing template files")
+    analyze_parser.add_argument(
+        "--extensions",
+        nargs="+",
+        default=[".db", ".vdb", ".template"],
+        help="File extensions to analyze",
+    )
 
     # Compare command
-    compare_parser = subparsers.add_parser('compare', help='Compare two template files')
-    compare_parser.add_argument('file1', help='First file to compare')
-    compare_parser.add_argument('file2', help='Second file to compare')
-    compare_parser.add_argument('--detailed', action='store_true',
-                               help='Show detailed comparison')
+    compare_parser = subparsers.add_parser("compare", help="Compare two template files")
+    compare_parser.add_argument("file1", help="First file to compare")
+    compare_parser.add_argument("file2", help="Second file to compare")
+    compare_parser.add_argument(
+        "--detailed", action="store_true", help="Show detailed comparison"
+    )
 
     # Duplicates command
-    dup_parser = subparsers.add_parser('duplicates', help='Find duplicate templates')
-    dup_parser.add_argument('directory', help='Directory to analyze')
-    dup_parser.add_argument('--threshold', type=float, default=0.95,
-                          help='Similarity threshold (0-1)')
+    dup_parser = subparsers.add_parser("duplicates", help="Find duplicate templates")
+    dup_parser.add_argument("directory", help="Directory to analyze")
+    dup_parser.add_argument(
+        "--threshold", type=float, default=0.95, help="Similarity threshold (0-1)"
+    )
 
     # Consolidate command
-    consol_parser = subparsers.add_parser('consolidate',
-                                         help='Find consolidation opportunities')
-    consol_parser.add_argument('directory', help='Directory to analyze')
+    consol_parser = subparsers.add_parser(
+        "consolidate", help="Find consolidation opportunities"
+    )
+    consol_parser.add_argument("directory", help="Directory to analyze")
 
     # Mapping command
-    map_parser = subparsers.add_parser('mapping', help='Analyze VDB to DB mappings')
-    map_parser.add_argument('directory', help='Directory to analyze')
+    map_parser = subparsers.add_parser("mapping", help="Analyze VDB to DB mappings")
+    map_parser.add_argument("directory", help="Directory to analyze")
 
     # Report command
-    report_parser = subparsers.add_parser('report', help='Generate full analysis report')
-    report_parser.add_argument('directory', help='Directory to analyze')
-    report_parser.add_argument('--output', help='Output file (default: print to stdout)')
+    report_parser = subparsers.add_parser(
+        "report", help="Generate full analysis report"
+    )
+    report_parser.add_argument("directory", help="Directory to analyze")
+    report_parser.add_argument(
+        "--output", help="Output file (default: print to stdout)"
+    )
 
     # Add verbose flag to all subparsers
-    for subparser in [analyze_parser, compare_parser, dup_parser,
-                     consol_parser, map_parser, report_parser]:
-        subparser.add_argument('-v', '--verbose', action='store_true',
-                             help='Verbose output')
+    for subparser in [
+        analyze_parser,
+        compare_parser,
+        dup_parser,
+        consol_parser,
+        map_parser,
+        report_parser,
+    ]:
+        subparser.add_argument(
+            "-v", "--verbose", action="store_true", help="Verbose output"
+        )
 
     args = parser.parse_args()
 
@@ -531,9 +582,11 @@ Examples:
         parser.print_help()
         sys.exit(1)
 
-    analyzer = TemplateAnalyzer(verbose=args.verbose if hasattr(args, 'verbose') else False)
+    analyzer = TemplateAnalyzer(
+        verbose=args.verbose if hasattr(args, "verbose") else False
+    )
 
-    if args.command == 'analyze':
+    if args.command == "analyze":
         directory = Path(args.directory)
         if not directory.exists():
             print(f"Error: Directory {directory} does not exist")
@@ -554,7 +607,7 @@ Examples:
         for ext, count in sorted(file_types.items()):
             print(f"  {ext}: {count} files")
 
-    elif args.command == 'compare':
+    elif args.command == "compare":
         # First analyze the directory containing these files
         file1_path = Path(args.file1)
         file2_path = Path(args.file2)
@@ -577,19 +630,21 @@ Examples:
             print(f"  Macros: {', '.join(comparison['file2']['macros'][:5])}")
             print(f"\nCommon signatures: {len(comparison['common']['signatures'])}")
 
-            if args.detailed and comparison.get('diff_preview'):
+            if args.detailed and comparison.get("diff_preview"):
                 print("\nDiff preview (first 50 lines):")
-                for line in comparison['diff_preview']:
+                for line in comparison["diff_preview"]:
                     print(line.rstrip())
 
-    elif args.command == 'duplicates':
+    elif args.command == "duplicates":
         directory = Path(args.directory)
         analyzer.analyze_directory(directory)
 
         duplicates = analyzer.find_duplicates(threshold=args.threshold)
 
         if duplicates:
-            print(f"Found {len(duplicates)} potential duplicates (>{args.threshold*100:.0f}% similar):")
+            print(
+                f"Found {len(duplicates)} potential duplicates (>{args.threshold*100:.0f}% similar):"
+            )
             for file1, file2, similarity in duplicates:
                 print(f"\n{similarity*100:.1f}% similar:")
                 print(f"  - {file1}")
@@ -597,7 +652,7 @@ Examples:
         else:
             print("No significant duplicates found")
 
-    elif args.command == 'consolidate':
+    elif args.command == "consolidate":
         directory = Path(args.directory)
         analyzer.analyze_directory(directory)
 
@@ -610,15 +665,15 @@ Examples:
                 print(f"   Files to consolidate: {candidate['count']}")
                 print(f"   Common records: {candidate['common_percentage']}%")
                 print(f"   Files:")
-                for file in candidate['files'][:5]:
+                for file in candidate["files"][:5]:
                     print(f"     - {file}")
-                if len(candidate['files']) > 5:
+                if len(candidate["files"]) > 5:
                     print(f"     ... and {len(candidate['files']) - 5} more")
                 print()
         else:
             print("No consolidation opportunities found")
 
-    elif args.command == 'mapping':
+    elif args.command == "mapping":
         directory = Path(args.directory)
         analyzer.analyze_directory(directory)
 
@@ -628,30 +683,30 @@ Examples:
         print(f"Templates (.vdb): {mapping['vdb_count']}")
         print(f"Instances (.db): {mapping['db_count']}")
 
-        if mapping['mappings']:
+        if mapping["mappings"]:
             print(f"\nIdentified mappings:")
-            for m in mapping['mappings']:
+            for m in mapping["mappings"]:
                 print(f"\n{m['vdb_template']}:")
-                for db in m['derived_db_files'][:5]:
+                for db in m["derived_db_files"][:5]:
                     print(f"  -> {db['db_file']} ({db['similarity']*100:.1f}% similar)")
-                if len(m['derived_db_files']) > 5:
+                if len(m["derived_db_files"]) > 5:
                     print(f"  ... and {len(m['derived_db_files']) - 5} more")
         else:
             print("\nNo clear VDB to DB mappings found")
 
-    elif args.command == 'report':
+    elif args.command == "report":
         directory = Path(args.directory)
         analyzer.analyze_directory(directory)
 
         report = analyzer.generate_report()
 
         if args.output:
-            with open(args.output, 'w') as f:
+            with open(args.output, "w") as f:
                 f.write(report)
             print(f"Report saved to {args.output}")
         else:
             print(report)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

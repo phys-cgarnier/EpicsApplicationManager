@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from ioc_validation_engine import ValidationEngine, Severity
 
+
 def test_validation():
     """Test the validation engine with sample data"""
 
@@ -47,7 +48,7 @@ file test.vdb
 
     # Save to temporary file
     test_file = Path("test_substitution.tmp")
-    with open(test_file, 'w') as f:
+    with open(test_file, "w") as f:
         f.write(test_content)
 
     # Run validation
@@ -108,13 +109,13 @@ file test.vdb
     """
 
     test1_file = Path("test1.tmp")
-    with open(test1_file, 'w') as f:
+    with open(test1_file, "w") as f:
         f.write(test1)
 
     result1 = engine.validate_substitution_file(str(test1_file))
 
     for issue in result1.issues:
-        if 'BRACE' in issue.rule_id:
+        if "BRACE" in issue.rule_id:
             print(f"  Line {issue.line_number}: {issue.message}")
 
     test1_file.unlink()
@@ -133,13 +134,13 @@ file test.vdb
 """
 
     test2_file = Path("test2.tmp")
-    with open(test2_file, 'w') as f:
+    with open(test2_file, "w") as f:
         f.write(test2)
 
     result2 = engine.validate_substitution_file(str(test2_file))
 
     for issue in result2.issues:
-        if 'QUOTE' in issue.rule_id:
+        if "QUOTE" in issue.rule_id:
             print(f"  Line {issue.line_number}: {issue.message}")
             if issue.current_value and issue.suggested_value:
                 print(f"    '{issue.current_value}' → '{issue.suggested_value}'")
@@ -149,6 +150,7 @@ file test.vdb
     print("\n" + "=" * 60)
     print("TEST COMPLETE")
     print("=" * 60)
+
 
 if __name__ == "__main__":
     test_validation()

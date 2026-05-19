@@ -29,6 +29,7 @@ import subprocess
 @dataclass
 class IOCComponent:
     """Represents a component of the IOC system"""
+
     name: str
     path: Path
     component_type: str  # 'substitution', 'template', 'archive', 'makefile'
@@ -40,6 +41,7 @@ class IOCComponent:
 @dataclass
 class IOCSystem:
     """Represents complete IOC system"""
+
     name: str
     base_path: Path
     db_files: List[IOCComponent] = field(default_factory=list)
@@ -68,7 +70,7 @@ class IOCMasterManager:
         self.log(f"Scanning {self.base_path}")
 
         # Scan for all IOC directories in Db/
-        db_base = self.base_path / 'Db'
+        db_base = self.base_path / "Db"
 
         # First, scan all actual directories in Db/
         if db_base.exists():
@@ -79,69 +81,71 @@ class IOCMasterManager:
 
                     # Find DB files
                     db_path = ioc_dir
-                    for db_file in db_path.glob('*.db'):
+                    for db_file in db_path.glob("*.db"):
                         component = IOCComponent(
-                            name=db_file.stem,
-                            path=db_file,
-                            component_type='template'
+                            name=db_file.stem, path=db_file, component_type="template"
                         )
                         system.db_files.append(component)
                         self.log(f"Found DB: {db_file.name}")
 
                     # Find vdb files
-                    for vdb_file in db_path.glob('*.vdb'):
+                    for vdb_file in db_path.glob("*.vdb"):
                         component = IOCComponent(
-                            name=vdb_file.stem,
-                            path=vdb_file,
-                            component_type='template'
+                            name=vdb_file.stem, path=vdb_file, component_type="template"
                         )
                         system.db_files.append(component)
                         self.log(f"Found VDB: {vdb_file.name}")
 
                     # Find substitution files
-                    for sub_file in db_path.glob('*.substitutions'):
+                    for sub_file in db_path.glob("*.substitutions"):
                         component = IOCComponent(
                             name=sub_file.stem,
                             path=sub_file,
-                            component_type='substitution'
+                            component_type="substitution",
                         )
                         system.substitution_files.append(component)
                         self.log(f"Found substitution: {sub_file.name}")
 
                     # Find archive files
-                    archive_path = self.base_path / 'srcArchive' / pattern
+                    archive_path = self.base_path / "srcArchive" / pattern
                     if archive_path.exists():
-                        for archive_file in archive_path.glob('*.archive'):
+                        for archive_file in archive_path.glob("*.archive"):
                             component = IOCComponent(
                                 name=archive_file.stem,
                                 path=archive_file,
-                                component_type='archive'
+                                component_type="archive",
                             )
                             system.archive_files.append(component)
                             self.log(f"Found archive: {archive_file.name}")
 
-                        for tpl_file in archive_path.glob('*.tpl-arch'):
+                        for tpl_file in archive_path.glob("*.tpl-arch"):
                             component = IOCComponent(
                                 name=tpl_file.stem,
                                 path=tpl_file,
-                                component_type='archive'
+                                component_type="archive",
                             )
                             system.archive_files.append(component)
                             self.log(f"Found template archive: {tpl_file.name}")
 
                         # Find Makefile
-                        makefile = archive_path / 'Makefile'
+                        makefile = archive_path / "Makefile"
                         if makefile.exists():
                             component = IOCComponent(
-                                name='Makefile',
+                                name="Makefile",
                                 path=makefile,
-                                component_type='makefile'
+                                component_type="makefile",
                             )
                             system.makefiles.append(component)
                             self.log(f"Found Makefile for {pattern}")
 
-                    if any([system.db_files, system.substitution_files,
-                           system.archive_files, system.makefiles]):
+                    if any(
+                        [
+                            system.db_files,
+                            system.substitution_files,
+                            system.archive_files,
+                            system.makefiles,
+                        ]
+                    ):
                         self.systems[pattern] = system
 
         # Also scan top-level files in Db/ (not in subdirectories)
@@ -149,94 +153,80 @@ class IOCMasterManager:
             loose_db_files = []
             loose_sub_files = []
 
-            for item in db_base.glob('*.db'):
+            for item in db_base.glob("*.db"):
                 if item.is_file():
                     loose_db_files.append(item)
 
-            for item in db_base.glob('*.vdb'):
+            for item in db_base.glob("*.vdb"):
                 if item.is_file():
                     loose_db_files.append(item)
 
-            for item in db_base.glob('*.substitutions'):
+            for item in db_base.glob("*.substitutions"):
                 if item.is_file():
                     loose_sub_files.append(item)
 
             if loose_db_files or loose_sub_files:
-                system = IOCSystem(name='_root_db_files', base_path=self.base_path)
+                system = IOCSystem(name="_root_db_files", base_path=self.base_path)
 
                 for db_file in loose_db_files:
                     component = IOCComponent(
-                        name=db_file.stem,
-                        path=db_file,
-                        component_type='template'
+                        name=db_file.stem, path=db_file, component_type="template"
                     )
                     system.db_files.append(component)
                     self.log(f"Found loose DB: {db_file.name}")
 
                 for sub_file in loose_sub_files:
                     component = IOCComponent(
-                        name=sub_file.stem,
-                        path=sub_file,
-                        component_type='substitution'
+                        name=sub_file.stem, path=sub_file, component_type="substitution"
                     )
                     system.substitution_files.append(component)
                     self.log(f"Found loose substitution: {sub_file.name}")
 
-                self.systems['_root_db_files'] = system
+                self.systems["_root_db_files"] = system
 
         return self.systems
 
     def validate_makefile(self, makefile_path: Path) -> Dict[str, Any]:
         """Validate and analyze a Makefile"""
-        results = {
-            'valid': True,
-            'archives': [],
-            'missing_archives': [],
-            'issues': []
-        }
+        results = {"valid": True, "archives": [], "missing_archives": [], "issues": []}
 
         try:
-            with open(makefile_path, 'r') as f:
+            with open(makefile_path, "r") as f:
                 content = f.read()
 
             # Extract ARCHIVE definitions
-            archive_pattern = re.compile(r'ARCHIVE\s*\+=\s*(.+)')
+            archive_pattern = re.compile(r"ARCHIVE\s*\+=\s*(.+)")
             for match in archive_pattern.finditer(content):
                 archives = match.group(1).strip().split()
-                results['archives'].extend(archives)
+                results["archives"].extend(archives)
 
             # Check if referenced archives exist
             archive_dir = makefile_path.parent
-            for archive_name in results['archives']:
+            for archive_name in results["archives"]:
                 archive_path = archive_dir / archive_name
                 if not archive_path.exists():
-                    results['missing_archives'].append(archive_name)
-                    results['issues'].append(f"Missing archive: {archive_name}")
-                    results['valid'] = False
+                    results["missing_archives"].append(archive_name)
+                    results["issues"].append(f"Missing archive: {archive_name}")
+                    results["valid"] = False
 
             # Check for common Makefile issues
-            if 'include $(TOP)/configure/CONFIG' not in content:
-                results['issues'].append("Missing CONFIG include")
-                results['valid'] = False
+            if "include $(TOP)/configure/CONFIG" not in content:
+                results["issues"].append("Missing CONFIG include")
+                results["valid"] = False
 
-            if 'include $(TOP)/configure/RULES' not in content:
-                results['issues'].append("Missing RULES include")
-                results['valid'] = False
+            if "include $(TOP)/configure/RULES" not in content:
+                results["issues"].append("Missing RULES include")
+                results["valid"] = False
 
         except Exception as e:
-            results['valid'] = False
-            results['issues'].append(f"Error reading Makefile: {e}")
+            results["valid"] = False
+            results["issues"].append(f"Error reading Makefile: {e}")
 
         return results
 
     def audit_archiver(self, system: IOCSystem) -> Dict[str, Any]:
         """Audit archiver configuration against substitution files"""
-        results = {
-            'coverage': {},
-            'missing_pvs': [],
-            'extra_pvs': [],
-            'issues': []
-        }
+        results = {"coverage": {}, "missing_pvs": [], "extra_pvs": [], "issues": []}
 
         # Extract PVs from substitution files
         sub_pvs = set()
@@ -247,29 +237,33 @@ class IOCMasterManager:
         # Extract PVs from archive files
         arch_pvs = set()
         for arch_file in system.archive_files:
-            if arch_file.path.suffix in ['.archive', '.tpl-arch']:
+            if arch_file.path.suffix in [".archive", ".tpl-arch"]:
                 pvs = self._extract_pvs_from_archive(arch_file.path)
                 arch_pvs.update(pvs)
 
         # Compare
-        results['missing_pvs'] = list(sub_pvs - arch_pvs)
-        results['extra_pvs'] = list(arch_pvs - sub_pvs)
+        results["missing_pvs"] = list(sub_pvs - arch_pvs)
+        results["extra_pvs"] = list(arch_pvs - sub_pvs)
 
         if sub_pvs:
-            results['coverage']['percentage'] = len(arch_pvs & sub_pvs) / len(sub_pvs) * 100
+            results["coverage"]["percentage"] = (
+                len(arch_pvs & sub_pvs) / len(sub_pvs) * 100
+            )
         else:
-            results['coverage']['percentage'] = 0
+            results["coverage"]["percentage"] = 0
 
-        results['coverage']['substitution_pvs'] = len(sub_pvs)
-        results['coverage']['archived_pvs'] = len(arch_pvs)
-        results['coverage']['common_pvs'] = len(arch_pvs & sub_pvs)
+        results["coverage"]["substitution_pvs"] = len(sub_pvs)
+        results["coverage"]["archived_pvs"] = len(arch_pvs)
+        results["coverage"]["common_pvs"] = len(arch_pvs & sub_pvs)
 
         # Flag issues
-        if results['coverage']['percentage'] < 80:
-            results['issues'].append(f"Low archive coverage: {results['coverage']['percentage']:.1f}%")
+        if results["coverage"]["percentage"] < 80:
+            results["issues"].append(
+                f"Low archive coverage: {results['coverage']['percentage']:.1f}%"
+            )
 
-        if len(results['missing_pvs']) > 10:
-            results['issues'].append(f"{len(results['missing_pvs'])} PVs not archived")
+        if len(results["missing_pvs"]) > 10:
+            results["issues"].append(f"{len(results['missing_pvs'])} PVs not archived")
 
         return results
 
@@ -277,20 +271,20 @@ class IOCMasterManager:
         """Extract PV names from substitution file"""
         pvs = set()
         try:
-            with open(sub_path, 'r') as f:
+            with open(sub_path, "r") as f:
                 content = f.read()
 
             # Parse substitution patterns
-            pattern = re.compile(r'\{([^}]+)\}')
+            pattern = re.compile(r"\{([^}]+)\}")
             for match in pattern.finditer(content):
-                fields = match.group(1).split(',')
+                fields = match.group(1).split(",")
                 # Typically PV name is in one of the first few fields
                 for field in fields[:5]:
                     field = field.strip()
-                    if field and not field.startswith('$('):
+                    if field and not field.startswith("$("):
                         # Clean up the PV name
-                        pv = re.sub(r'"', '', field)
-                        if ':' in pv:  # Likely a PV name
+                        pv = re.sub(r'"', "", field)
+                        if ":" in pv:  # Likely a PV name
                             pvs.add(pv)
         except Exception as e:
             self.log(f"Error parsing {sub_path}: {e}")
@@ -301,15 +295,15 @@ class IOCMasterManager:
         """Extract PV names from archive file"""
         pvs = set()
         try:
-            with open(arch_path, 'r') as f:
+            with open(arch_path, "r") as f:
                 for line in f:
                     line = line.strip()
-                    if line and not line.startswith('#'):
+                    if line and not line.startswith("#"):
                         # Archive files typically have PV names directly
                         parts = line.split()
                         if parts:
                             pv = parts[0]
-                            if ':' in pv:  # Likely a PV name
+                            if ":" in pv:  # Likely a PV name
                                 pvs.add(pv)
         except Exception as e:
             self.log(f"Error parsing {arch_path}: {e}")
@@ -318,25 +312,20 @@ class IOCMasterManager:
 
     def cross_validate(self, system: IOCSystem) -> Dict[str, Any]:
         """Cross-validate all components of an IOC system"""
-        results = {
-            'system': system.name,
-            'valid': True,
-            'issues': [],
-            'statistics': {}
-        }
+        results = {"system": system.name, "valid": True, "issues": [], "statistics": {}}
 
         # Validate Makefiles
         for makefile in system.makefiles:
             make_results = self.validate_makefile(makefile.path)
-            if not make_results['valid']:
-                results['valid'] = False
-                results['issues'].extend(make_results['issues'])
+            if not make_results["valid"]:
+                results["valid"] = False
+                results["issues"].extend(make_results["issues"])
 
         # Audit archiver coverage
         arch_results = self.audit_archiver(system)
-        results['archiver_audit'] = arch_results
-        if arch_results['issues']:
-            results['issues'].extend(arch_results['issues'])
+        results["archiver_audit"] = arch_results
+        if arch_results["issues"]:
+            results["issues"].extend(arch_results["issues"])
 
         # Check for orphaned files
         db_names = {f.name for f in system.db_files}
@@ -348,15 +337,17 @@ class IOCMasterManager:
             referenced = self._get_referenced_db_files(sub_file.path)
             for ref in referenced:
                 if ref not in db_names:
-                    results['issues'].append(f"Missing DB file: {ref} (referenced in {sub_file.name})")
+                    results["issues"].append(
+                        f"Missing DB file: {ref} (referenced in {sub_file.name})"
+                    )
 
         # Statistics
-        results['statistics'] = {
-            'db_files': len(system.db_files),
-            'substitution_files': len(system.substitution_files),
-            'archive_files': len(system.archive_files),
-            'makefiles': len(system.makefiles),
-            'total_issues': len(results['issues'])
+        results["statistics"] = {
+            "db_files": len(system.db_files),
+            "substitution_files": len(system.substitution_files),
+            "archive_files": len(system.archive_files),
+            "makefiles": len(system.makefiles),
+            "total_issues": len(results["issues"]),
         }
 
         return results
@@ -365,11 +356,11 @@ class IOCMasterManager:
         """Get DB files referenced in a substitution file"""
         referenced = set()
         try:
-            with open(sub_path, 'r') as f:
+            with open(sub_path, "r") as f:
                 content = f.read()
 
             # Find file references
-            file_pattern = re.compile(r'^file\s+([A-Za-z0-9_\-\.]+)', re.MULTILINE)
+            file_pattern = re.compile(r"^file\s+([A-Za-z0-9_\-\.]+)", re.MULTILINE)
             for match in file_pattern.finditer(content):
                 referenced.add(match.group(1))
         except Exception as e:
@@ -390,44 +381,47 @@ class IOCMasterManager:
         # Makefile to archive dependencies
         for makefile in system.makefiles:
             make_results = self.validate_makefile(makefile.path)
-            for archive in make_results['archives']:
+            for archive in make_results["archives"]:
                 graph[makefile.name].append(archive)
 
         return dict(graph)
 
-    def fix_archive_coverage(self, system: IOCSystem, output_dir: Path) -> Dict[str, Any]:
+    def fix_archive_coverage(
+        self, system: IOCSystem, output_dir: Path
+    ) -> Dict[str, Any]:
         """Generate updated archive files with missing PVs"""
-        results = {
-            'files_created': [],
-            'pvs_added': 0
-        }
+        results = {"files_created": [], "pvs_added": 0}
 
         audit = self.audit_archiver(system)
 
-        if audit['missing_pvs']:
+        if audit["missing_pvs"]:
             # Group missing PVs by pattern
             pv_groups = defaultdict(list)
-            for pv in audit['missing_pvs']:
+            for pv in audit["missing_pvs"]:
                 # Extract base pattern from PV name
-                base = pv.split(':')[0] if ':' in pv else 'misc'
+                base = pv.split(":")[0] if ":" in pv else "misc"
                 pv_groups[base].append(pv)
 
             # Create new archive files
             output_dir.mkdir(parents=True, exist_ok=True)
 
             for group_name, pvs in pv_groups.items():
-                archive_file = output_dir / f"{system.name}_{group_name}_missing.archive"
+                archive_file = (
+                    output_dir / f"{system.name}_{group_name}_missing.archive"
+                )
 
-                with open(archive_file, 'w') as f:
+                with open(archive_file, "w") as f:
                     f.write(f"# Missing PVs for {system.name} - {group_name}\n")
-                    f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(
+                        f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    )
                     f.write(f"# Total PVs: {len(pvs)}\n\n")
 
                     for pv in sorted(pvs):
                         f.write(f"{pv} 1 Monitor\n")
 
-                results['files_created'].append(str(archive_file))
-                results['pvs_added'] += len(pvs)
+                results["files_created"].append(str(archive_file))
+                results["pvs_added"] += len(pvs)
 
         return results
 
@@ -455,23 +449,25 @@ class IOCMasterManager:
         total_issues = 0
         for name, system in sorted(self.systems.items()):
             validation = self.cross_validate(system)
-            if validation['issues']:
+            if validation["issues"]:
                 report.append(f"{name} VALIDATION ISSUES:")
-                for issue in validation['issues'][:5]:
+                for issue in validation["issues"][:5]:
                     report.append(f"  - {issue}")
-                if len(validation['issues']) > 5:
+                if len(validation["issues"]) > 5:
                     report.append(f"  ... and {len(validation['issues']) - 5} more")
                 report.append("")
-                total_issues += len(validation['issues'])
+                total_issues += len(validation["issues"])
 
             # Archiver coverage
-            if 'archiver_audit' in validation:
-                audit = validation['archiver_audit']
+            if "archiver_audit" in validation:
+                audit = validation["archiver_audit"]
                 report.append(f"{name} ARCHIVER COVERAGE:")
                 report.append(f"  Coverage: {audit['coverage']['percentage']:.1f}%")
-                report.append(f"  Substitution PVs: {audit['coverage']['substitution_pvs']}")
+                report.append(
+                    f"  Substitution PVs: {audit['coverage']['substitution_pvs']}"
+                )
                 report.append(f"  Archived PVs: {audit['coverage']['archived_pvs']}")
-                if audit['missing_pvs']:
+                if audit["missing_pvs"]:
                     report.append(f"  Missing PVs: {len(audit['missing_pvs'])}")
                 report.append("")
 
@@ -492,13 +488,13 @@ class IOCMasterManager:
         report.append("")
         report.append("=" * 80)
 
-        return '\n'.join(report)
+        return "\n".join(report)
 
 
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description='EPICS IOC Master Management Tool',
+        description="EPICS IOC Master Management Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -522,51 +518,74 @@ Examples:
 
   # Generate dependency graph
   %(prog)s dependencies /path/to/CryoplantApp --system c1_2kcb
-        """
+        """,
     )
 
-    subparsers = parser.add_subparsers(dest='command', help='Command to execute')
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     # Scan command
-    scan_parser = subparsers.add_parser('scan', help='Scan IOC system')
-    scan_parser.add_argument('path', help='Base path to IOC system')
+    scan_parser = subparsers.add_parser("scan", help="Scan IOC system")
+    scan_parser.add_argument("path", help="Base path to IOC system")
 
     # Validate command
-    validate_parser = subparsers.add_parser('validate', help='Validate IOC system')
-    validate_parser.add_argument('path', help='Base path to IOC system')
-    validate_parser.add_argument('--system', help='Specific system to validate')
+    validate_parser = subparsers.add_parser("validate", help="Validate IOC system")
+    validate_parser.add_argument("path", help="Base path to IOC system")
+    validate_parser.add_argument("--system", help="Specific system to validate")
 
     # Audit archiver command
-    audit_parser = subparsers.add_parser('audit-archiver', help='Audit archiver coverage')
-    audit_parser.add_argument('path', help='Base path to IOC system')
-    audit_parser.add_argument('--system', required=True, help='System to audit')
+    audit_parser = subparsers.add_parser(
+        "audit-archiver", help="Audit archiver coverage"
+    )
+    audit_parser.add_argument("path", help="Base path to IOC system")
+    audit_parser.add_argument("--system", required=True, help="System to audit")
 
     # Fix archives command
-    fix_parser = subparsers.add_parser('fix-archives', help='Fix missing archive entries')
-    fix_parser.add_argument('path', help='Base path to IOC system')
-    fix_parser.add_argument('--system', required=True, help='System to fix')
-    fix_parser.add_argument('--output', default='./fixed_archives', help='Output directory')
+    fix_parser = subparsers.add_parser(
+        "fix-archives", help="Fix missing archive entries"
+    )
+    fix_parser.add_argument("path", help="Base path to IOC system")
+    fix_parser.add_argument("--system", required=True, help="System to fix")
+    fix_parser.add_argument(
+        "--output", default="./fixed_archives", help="Output directory"
+    )
 
     # Report command
-    report_parser = subparsers.add_parser('report', help='Generate full report')
-    report_parser.add_argument('path', help='Base path to IOC system')
-    report_parser.add_argument('--output', help='Output file')
+    report_parser = subparsers.add_parser("report", help="Generate full report")
+    report_parser.add_argument("path", help="Base path to IOC system")
+    report_parser.add_argument("--output", help="Output file")
 
     # Check makefile command
-    makefile_parser = subparsers.add_parser('check-makefile', help='Check Makefile validity')
-    makefile_parser.add_argument('makefile', help='Path to Makefile')
+    makefile_parser = subparsers.add_parser(
+        "check-makefile", help="Check Makefile validity"
+    )
+    makefile_parser.add_argument("makefile", help="Path to Makefile")
 
     # Dependencies command
-    deps_parser = subparsers.add_parser('dependencies', help='Generate dependency graph')
-    deps_parser.add_argument('path', help='Base path to IOC system')
-    deps_parser.add_argument('--system', help='Specific system')
-    deps_parser.add_argument('--format', choices=['text', 'json', 'dot'], default='text',
-                            help='Output format')
+    deps_parser = subparsers.add_parser(
+        "dependencies", help="Generate dependency graph"
+    )
+    deps_parser.add_argument("path", help="Base path to IOC system")
+    deps_parser.add_argument("--system", help="Specific system")
+    deps_parser.add_argument(
+        "--format",
+        choices=["text", "json", "dot"],
+        default="text",
+        help="Output format",
+    )
 
     # Add verbose flag to all
-    for subparser in [scan_parser, validate_parser, audit_parser, fix_parser,
-                     report_parser, makefile_parser, deps_parser]:
-        subparser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    for subparser in [
+        scan_parser,
+        validate_parser,
+        audit_parser,
+        fix_parser,
+        report_parser,
+        makefile_parser,
+        deps_parser,
+    ]:
+        subparser.add_argument(
+            "-v", "--verbose", action="store_true", help="Verbose output"
+        )
 
     args = parser.parse_args()
 
@@ -574,7 +593,7 @@ Examples:
         parser.print_help()
         sys.exit(1)
 
-    if args.command == 'scan':
+    if args.command == "scan":
         path = Path(args.path)
         manager = IOCMasterManager(path, verbose=args.verbose)
         systems = manager.scan_directory()
@@ -587,7 +606,7 @@ Examples:
             print(f"  Archives: {len(system.archive_files)}")
             print(f"  Makefiles: {len(system.makefiles)}")
 
-    elif args.command == 'validate':
+    elif args.command == "validate":
         path = Path(args.path)
         manager = IOCMasterManager(path, verbose=args.verbose)
         manager.scan_directory()
@@ -604,14 +623,14 @@ Examples:
             results = manager.cross_validate(system)
             print(f"\n{name} Validation:")
             print(f"  Valid: {results['valid']}")
-            if results['issues']:
+            if results["issues"]:
                 print(f"  Issues ({len(results['issues'])}):")
-                for issue in results['issues'][:5]:
+                for issue in results["issues"][:5]:
                     print(f"    - {issue}")
-                if len(results['issues']) > 5:
+                if len(results["issues"]) > 5:
                     print(f"    ... and {len(results['issues']) - 5} more")
 
-    elif args.command == 'audit-archiver':
+    elif args.command == "audit-archiver":
         path = Path(args.path)
         manager = IOCMasterManager(path, verbose=args.verbose)
         manager.scan_directory()
@@ -629,19 +648,19 @@ Examples:
         print(f"  Archived PVs: {results['coverage']['archived_pvs']}")
         print(f"  Common PVs: {results['coverage']['common_pvs']}")
 
-        if results['missing_pvs']:
+        if results["missing_pvs"]:
             print(f"\n  Missing PVs ({len(results['missing_pvs'])}):")
-            for pv in results['missing_pvs'][:10]:
+            for pv in results["missing_pvs"][:10]:
                 print(f"    - {pv}")
-            if len(results['missing_pvs']) > 10:
+            if len(results["missing_pvs"]) > 10:
                 print(f"    ... and {len(results['missing_pvs']) - 10} more")
 
-        if results['extra_pvs']:
+        if results["extra_pvs"]:
             print(f"\n  Extra PVs in archives ({len(results['extra_pvs'])}):")
-            for pv in results['extra_pvs'][:10]:
+            for pv in results["extra_pvs"][:10]:
                 print(f"    - {pv}")
 
-    elif args.command == 'fix-archives':
+    elif args.command == "fix-archives":
         path = Path(args.path)
         manager = IOCMasterManager(path, verbose=args.verbose)
         manager.scan_directory()
@@ -654,15 +673,15 @@ Examples:
         output_dir = Path(args.output)
         results = manager.fix_archive_coverage(system, output_dir)
 
-        if results['files_created']:
+        if results["files_created"]:
             print(f"Created {len(results['files_created'])} archive files:")
-            for file in results['files_created']:
+            for file in results["files_created"]:
                 print(f"  - {file}")
             print(f"Total PVs added: {results['pvs_added']}")
         else:
             print("No missing PVs found - archive coverage is complete")
 
-    elif args.command == 'report':
+    elif args.command == "report":
         path = Path(args.path)
         manager = IOCMasterManager(path, verbose=args.verbose)
         manager.scan_directory()
@@ -670,13 +689,13 @@ Examples:
         report = manager.generate_report()
 
         if args.output:
-            with open(args.output, 'w') as f:
+            with open(args.output, "w") as f:
                 f.write(report)
             print(f"Report saved to {args.output}")
         else:
             print(report)
 
-    elif args.command == 'check-makefile':
+    elif args.command == "check-makefile":
         makefile = Path(args.makefile)
         if not makefile.exists():
             print(f"Makefile not found: {makefile}")
@@ -689,22 +708,22 @@ Examples:
         print(f"  Valid: {results['valid']}")
         print(f"  Archives defined: {len(results['archives'])}")
 
-        if results['archives']:
+        if results["archives"]:
             print(f"  Archive files:")
-            for archive in results['archives']:
+            for archive in results["archives"]:
                 print(f"    - {archive}")
 
-        if results['missing_archives']:
+        if results["missing_archives"]:
             print(f"  Missing archives:")
-            for archive in results['missing_archives']:
+            for archive in results["missing_archives"]:
                 print(f"    - {archive}")
 
-        if results['issues']:
+        if results["issues"]:
             print(f"  Issues:")
-            for issue in results['issues']:
+            for issue in results["issues"]:
                 print(f"    - {issue}")
 
-    elif args.command == 'dependencies':
+    elif args.command == "dependencies":
         path = Path(args.path)
         manager = IOCMasterManager(path, verbose=args.verbose)
         manager.scan_directory()
@@ -720,9 +739,9 @@ Examples:
         for name, system in sorted(systems.items()):
             graph = manager.generate_dependency_graph(system)
 
-            if args.format == 'json':
+            if args.format == "json":
                 print(json.dumps({name: graph}, indent=2))
-            elif args.format == 'dot':
+            elif args.format == "dot":
                 print(f"digraph {name} {{")
                 for source, targets in graph.items():
                     for target in targets:
@@ -736,5 +755,5 @@ Examples:
                         print(f"    -> {target}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

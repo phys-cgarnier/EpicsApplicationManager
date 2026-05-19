@@ -17,9 +17,9 @@ from typing import List
 
 from ioc_validation_engine import ValidationEngine, Severity
 
-SUB_EXTS = {'.substitutions', '.sub', '.vdb'}
-TEMPLATE_EXTS = {'.db', '.template'}
-ARCHIVE_EXTS = {'.archive', '.txt'}
+SUB_EXTS = {".substitutions", ".sub", ".vdb"}
+TEMPLATE_EXTS = {".db", ".template"}
+ARCHIVE_EXTS = {".archive", ".txt"}
 
 
 def find_files(paths: List[str], recursive: bool, types: List[str]):
@@ -30,7 +30,7 @@ def find_files(paths: List[str], recursive: bool, types: List[str]):
             files.append(pth)
         elif pth.is_dir():
             if recursive:
-                for f in pth.rglob('*'):
+                for f in pth.rglob("*"):
                     if f.is_file():
                         files.append(f)
             else:
@@ -39,28 +39,28 @@ def find_files(paths: List[str], recursive: bool, types: List[str]):
                         files.append(f)
         else:
             # treat as glob
-            for f in Path('.').glob(p):
+            for f in Path(".").glob(p):
                 if f.is_file():
                     files.append(f)
     # filter by types
     out = []
     for f in files:
         suf = f.suffix.lower()
-        if 'substitution' in types and suf in SUB_EXTS:
-            out.append((f, 'substitution'))
-        elif 'template' in types and suf in TEMPLATE_EXTS:
-            out.append((f, 'template'))
-        elif 'archive' in types and suf in ARCHIVE_EXTS:
-            out.append((f, 'archive'))
+        if "substitution" in types and suf in SUB_EXTS:
+            out.append((f, "substitution"))
+        elif "template" in types and suf in TEMPLATE_EXTS:
+            out.append((f, "template"))
+        elif "archive" in types and suf in ARCHIVE_EXTS:
+            out.append((f, "archive"))
         else:
             # if user asked for all types, include known extensions
-            if 'all' in types:
+            if "all" in types:
                 if suf in SUB_EXTS:
-                    out.append((f, 'substitution'))
+                    out.append((f, "substitution"))
                 elif suf in TEMPLATE_EXTS:
-                    out.append((f, 'template'))
+                    out.append((f, "template"))
                 elif suf in ARCHIVE_EXTS:
-                    out.append((f, 'archive'))
+                    out.append((f, "archive"))
     return out
 
 
@@ -69,86 +69,102 @@ def validate_template_basic(path: Path):
     try:
         text = path.read_text()
     except Exception as e:
-        return {
-            'file_path': str(path),
-            'error': f'Cannot read file: {e}'
-        }
+        return {"file_path": str(path), "error": f"Cannot read file: {e}"}
 
-    contains_record = 'record(' in text or 'record (' in text
+    contains_record = "record(" in text or "record (" in text
     issues = []
     if not contains_record:
-        issues.append({
-            'severity': Severity.INFO.value,
-            'message': "No 'record(' occurrences found - file may not contain DB templates"
-        })
+        issues.append(
+            {
+                "severity": Severity.INFO.value,
+                "message": "No 'record(' occurrences found - file may not contain DB templates",
+            }
+        )
 
     return {
-        'file_path': str(path),
-        'sanity': True,
-        'contains_record': contains_record,
-        'issues': issues
+        "file_path": str(path),
+        "sanity": True,
+        "contains_record": contains_record,
+        "issues": issues,
     }
 
 
 def main():
-    p = argparse.ArgumentParser(description='Validate substitution and template files (non-GUI)')
-    p.add_argument('paths', nargs='+', help='Files or directories or glob patterns')
-    p.add_argument('--recursive', '-r', action='store_true', help='Recurse into directories')
-    p.add_argument('--types', '-t', nargs='+', default=['substitution', 'template'],
-                   choices=['substitution', 'template', 'archive', 'all'],
-                   help='Types to validate')
-    p.add_argument('--json', action='store_true', help='Output JSON')
+    p = argparse.ArgumentParser(
+        description="Validate substitution and template files (non-GUI)"
+    )
+    p.add_argument("paths", nargs="+", help="Files or directories or glob patterns")
+    p.add_argument(
+        "--recursive", "-r", action="store_true", help="Recurse into directories"
+    )
+    p.add_argument(
+        "--types",
+        "-t",
+        nargs="+",
+        default=["substitution", "template"],
+        choices=["substitution", "template", "archive", "all"],
+        help="Types to validate",
+    )
+    p.add_argument("--json", action="store_true", help="Output JSON")
     args = p.parse_args()
 
     engine = ValidationEngine()
 
     files = find_files(args.paths, args.recursive, args.types)
     if not files:
-        print('No files found matching requested types/paths')
+        print("No files found matching requested types/paths")
         sys.exit(2)
 
     results = []
     for fpath, ftype in files:
-        if ftype == 'substitution':
+        if ftype == "substitution":
             vr = engine.validate_substitution_file(str(fpath))
             results.append(json.loads(vr.to_json()))
-        elif ftype == 'archive':
+        elif ftype == "archive":
             vr = engine.validate_archive_file(str(fpath))
             results.append(json.loads(vr.to_json()))
-        elif ftype == 'template':
+        elif ftype == "template":
             tr = validate_template_basic(fpath)
             results.append(tr)
 
     if args.json:
-        print(json.dumps({'results': results}, indent=2))
+        print(json.dumps({"results": results}, indent=2))
     else:
         # human readable summary
         for r in results:
-            fp = r.get('file_path') or r.get('file') or 'unknown'
+            fp = r.get("file_path") or r.get("file") or "unknown"
             print(f"\nFile: {fp}")
-            if 'error' in r:
+            if "error" in r:
                 print(f"  ERROR: {r['error']}")
                 continue
-            if 'passed' in r:
+            if "passed" in r:
                 print(f"  PASSED: {r['passed']}")
-                print(f"  Total issues: {r.get('statistics', {}).get('total_issues', len(r.get('issues', [])))}")
-                print(f"  Critical: {len([i for i in r.get('issues', []) if i.get('severity')=='critical'])}")
-                print(f"  Warnings: {len([i for i in r.get('issues', []) if i.get('severity')=='warning'])}")
+                print(
+                    f"  Total issues: {r.get('statistics', {}).get('total_issues', len(r.get('issues', [])))}"
+                )
+                print(
+                    f"  Critical: {len([i for i in r.get('issues', []) if i.get('severity')=='critical'])}"
+                )
+                print(
+                    f"  Warnings: {len([i for i in r.get('issues', []) if i.get('severity')=='warning'])}"
+                )
 
-            elif 'sanity' in r:
-                print(f"  Template sanity check: contains 'record(': {r['contains_record']}")
-                for issue in r.get('issues', []):
+            elif "sanity" in r:
+                print(
+                    f"  Template sanity check: contains 'record(': {r['contains_record']}"
+                )
+                for issue in r.get("issues", []):
                     print(f"   - {issue['severity']}: {issue['message']}")
 
     # exit code 0 if no critical issues found
     any_critical = False
     for r in results:
-        if 'issues' in r:
-            for i in r['issues']:
-                if i.get('severity') == 'critical':
+        if "issues" in r:
+            for i in r["issues"]:
+                if i.get("severity") == "critical":
                     any_critical = True
     sys.exit(1 if any_critical else 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

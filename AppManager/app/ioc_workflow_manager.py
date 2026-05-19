@@ -19,11 +19,18 @@ from enum import Enum
 import tempfile
 import shutil
 
-from ioc_validation_engine import ValidationEngine, ValidationResult, ValidationIssue, Severity
+from ioc_validation_engine import (
+    ValidationEngine,
+    ValidationResult,
+    ValidationIssue,
+    Severity,
+)
 from ioc_backup_manager import BackupManager
+
 
 class WorkflowStatus(Enum):
     """Status of a workflow execution"""
+
     PENDING = "pending"
     IN_PREVIEW = "in_preview"
     AWAITING_APPROVAL = "awaiting_approval"
@@ -34,8 +41,10 @@ class WorkflowStatus(Enum):
     FAILED = "failed"
     ROLLED_BACK = "rolled_back"
 
+
 class ChangeType(Enum):
     """Type of change being made"""
+
     FORMAT = "format"
     VALIDATION_FIX = "validation_fix"
     QUOTE_CORRECTION = "quote_correction"
@@ -44,9 +53,11 @@ class ChangeType(Enum):
     MANUAL_EDIT = "manual_edit"
     BATCH_UPDATE = "batch_update"
 
+
 @dataclass
 class Change:
     """Represents a single change to be made"""
+
     file_path: str
     line_number: int
     original_value: str
@@ -58,18 +69,20 @@ class Change:
     def to_dict(self) -> Dict:
         """Convert to dictionary for JSON serialization"""
         return {
-            'file_path': self.file_path,
-            'line_number': self.line_number,
-            'original_value': self.original_value,
-            'new_value': self.new_value,
-            'change_type': self.change_type.value,
-            'description': self.description,
-            'auto_approved': self.auto_approved
+            "file_path": self.file_path,
+            "line_number": self.line_number,
+            "original_value": self.original_value,
+            "new_value": self.new_value,
+            "change_type": self.change_type.value,
+            "description": self.description,
+            "auto_approved": self.auto_approved,
         }
+
 
 @dataclass
 class WorkflowExecution:
     """Represents a complete workflow execution"""
+
     workflow_id: str
     workflow_type: str
     status: WorkflowStatus
@@ -86,18 +99,19 @@ class WorkflowExecution:
     def to_dict(self) -> Dict:
         """Convert to dictionary for JSON serialization"""
         return {
-            'workflow_id': self.workflow_id,
-            'workflow_type': self.workflow_type,
-            'status': self.status.value,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat(),
-            'user': self.user,
-            'files': self.files,
-            'changes': [c.to_dict() for c in self.changes],
-            'approval_info': self.approval_info,
-            'execution_result': self.execution_result,
-            'rollback_info': self.rollback_info
+            "workflow_id": self.workflow_id,
+            "workflow_type": self.workflow_type,
+            "status": self.status.value,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "user": self.user,
+            "files": self.files,
+            "changes": [c.to_dict() for c in self.changes],
+            "approval_info": self.approval_info,
+            "execution_result": self.execution_result,
+            "rollback_info": self.rollback_info,
         }
+
 
 class WorkflowManager:
     """Manages end-to-end workflows for IOC configuration changes"""
@@ -108,13 +122,15 @@ class WorkflowManager:
         self.backup_manager = BackupManager(backup_dir)
         self.workflows: Dict[str, WorkflowExecution] = {}
         self.workflow_history: List[WorkflowExecution] = []
-        self.temp_dir = Path(tempfile.gettempdir()) / 'ioc_workflows'
+        self.temp_dir = Path(tempfile.gettempdir()) / "ioc_workflows"
         self.temp_dir.mkdir(exist_ok=True)
 
-    def create_workflow(self, workflow_type: str, files: List[str],
-                       user: str = None) -> str:
+    def create_workflow(
+        self, workflow_type: str, files: List[str], user: str = None
+    ) -> str:
         """Create a new workflow execution"""
         import uuid
+
         workflow_id = str(uuid.uuid4())[:8]
 
         workflow = WorkflowExecution(
@@ -123,8 +139,8 @@ class WorkflowManager:
             status=WorkflowStatus.PENDING,
             created_at=datetime.now(),
             updated_at=datetime.now(),
-            user=user or os.environ.get('USER', 'unknown'),
-            files=files
+            user=user or os.environ.get("USER", "unknown"),
+            files=files,
         )
 
         self.workflows[workflow_id] = workflow
@@ -134,57 +150,70 @@ class WorkflowManager:
         """Analyze files and identify needed changes"""
         workflow = self.workflows.get(workflow_id)
         if not workflow:
-            return {'error': 'Workflow not found'}
+            return {"error": "Workflow not found"}
 
         workflow.status = WorkflowStatus.IN_PREVIEW
         workflow.updated_at = datetime.now()
 
         analysis_results = {
-            'workflow_id': workflow_id,
-            'files_analyzed': len(workflow.files),
-            'total_issues': 0,
-            'critical_issues': 0,
-            'warnings': 0,
-            'suggestions': 0,
-            'auto_fixable': 0,
-            'file_results': {}
+            "workflow_id": workflow_id,
+            "files_analyzed": len(workflow.files),
+            "total_issues": 0,
+            "critical_issues": 0,
+            "warnings": 0,
+            "suggestions": 0,
+            "auto_fixable": 0,
+            "file_results": {},
         }
 
         # Analyze each file
         for file_path in workflow.files:
             if not os.path.exists(file_path):
-                analysis_results['file_results'][file_path] = {
-                    'error': 'File not found'
+                analysis_results["file_results"][file_path] = {
+                    "error": "File not found"
                 }
                 continue
 
             # Run validation
-            validation_result = self.validation_engine.validate_substitution_file(file_path)
+            validation_result = self.validation_engine.validate_substitution_file(
+                file_path
+            )
             workflow.validation_results[file_path] = validation_result
 
             # Generate changes from validation results
-            changes = self._generate_changes_from_validation(file_path, validation_result)
+            changes = self._generate_changes_from_validation(
+                file_path, validation_result
+            )
             workflow.changes.extend(changes)
 
             # Collect statistics
-            analysis_results['total_issues'] += len(validation_result.issues)
-            analysis_results['critical_issues'] += len(validation_result.get_issues_by_severity(Severity.CRITICAL))
-            analysis_results['warnings'] += len(validation_result.get_issues_by_severity(Severity.WARNING))
-            analysis_results['suggestions'] += len(validation_result.get_issues_by_severity(Severity.SUGGESTION))
-            analysis_results['auto_fixable'] += sum(1 for i in validation_result.issues if i.auto_fixable)
+            analysis_results["total_issues"] += len(validation_result.issues)
+            analysis_results["critical_issues"] += len(
+                validation_result.get_issues_by_severity(Severity.CRITICAL)
+            )
+            analysis_results["warnings"] += len(
+                validation_result.get_issues_by_severity(Severity.WARNING)
+            )
+            analysis_results["suggestions"] += len(
+                validation_result.get_issues_by_severity(Severity.SUGGESTION)
+            )
+            analysis_results["auto_fixable"] += sum(
+                1 for i in validation_result.issues if i.auto_fixable
+            )
 
             # Store per-file results
-            analysis_results['file_results'][file_path] = {
-                'passed': validation_result.passed,
-                'total_issues': len(validation_result.issues),
-                'statistics': validation_result.statistics
+            analysis_results["file_results"][file_path] = {
+                "passed": validation_result.passed,
+                "total_issues": len(validation_result.issues),
+                "statistics": validation_result.statistics,
             }
 
         workflow.status = WorkflowStatus.AWAITING_APPROVAL
         return analysis_results
 
-    def _generate_changes_from_validation(self, file_path: str,
-                                         validation_result: ValidationResult) -> List[Change]:
+    def _generate_changes_from_validation(
+        self, file_path: str, validation_result: ValidationResult
+    ) -> List[Change]:
         """Generate change objects from validation results"""
         changes = []
 
@@ -192,9 +221,9 @@ class WorkflowManager:
             if issue.auto_fixable and issue.suggested_value is not None:
                 # Determine change type based on rule ID
                 change_type = ChangeType.VALIDATION_FIX
-                if 'QUOTE' in issue.rule_id:
+                if "QUOTE" in issue.rule_id:
                     change_type = ChangeType.QUOTE_CORRECTION
-                elif 'FORMAT' in issue.rule_id:
+                elif "FORMAT" in issue.rule_id:
                     change_type = ChangeType.FORMAT
 
                 change = Change(
@@ -204,30 +233,34 @@ class WorkflowManager:
                     new_value=issue.suggested_value,
                     change_type=change_type,
                     description=issue.message,
-                    auto_approved=(issue.severity != Severity.CRITICAL)
+                    auto_approved=(issue.severity != Severity.CRITICAL),
                 )
                 changes.append(change)
 
         return changes
 
-    def generate_preview(self, workflow_id: str,
-                        selected_changes: Optional[List[int]] = None) -> Dict[str, Any]:
+    def generate_preview(
+        self, workflow_id: str, selected_changes: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
         """Generate preview of changes to be made"""
         workflow = self.workflows.get(workflow_id)
         if not workflow:
-            return {'error': 'Workflow not found'}
+            return {"error": "Workflow not found"}
 
         # Filter changes if specific ones selected
         changes_to_apply = workflow.changes
         if selected_changes is not None:
-            changes_to_apply = [workflow.changes[i] for i in selected_changes
-                              if i < len(workflow.changes)]
+            changes_to_apply = [
+                workflow.changes[i]
+                for i in selected_changes
+                if i < len(workflow.changes)
+            ]
 
         preview = {
-            'workflow_id': workflow_id,
-            'total_changes': len(changes_to_apply),
-            'files_affected': set(),
-            'file_previews': {}
+            "workflow_id": workflow_id,
+            "total_changes": len(changes_to_apply),
+            "files_affected": set(),
+            "file_previews": {},
         }
 
         # Group changes by file
@@ -236,22 +269,23 @@ class WorkflowManager:
             if change.file_path not in changes_by_file:
                 changes_by_file[change.file_path] = []
             changes_by_file[change.file_path].append(change)
-            preview['files_affected'].add(change.file_path)
+            preview["files_affected"].add(change.file_path)
 
         # Generate preview for each file
         for file_path, file_changes in changes_by_file.items():
-            preview['file_previews'][file_path] = self._generate_file_preview(
+            preview["file_previews"][file_path] = self._generate_file_preview(
                 file_path, file_changes
             )
 
-        preview['files_affected'] = list(preview['files_affected'])
+        preview["files_affected"] = list(preview["files_affected"])
         return preview
 
-    def _generate_file_preview(self, file_path: str,
-                              changes: List[Change]) -> Dict[str, Any]:
+    def _generate_file_preview(
+        self, file_path: str, changes: List[Change]
+    ) -> Dict[str, Any]:
         """Generate preview for a single file"""
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 original_lines = f.readlines()
 
             # Apply changes to create modified version
@@ -264,7 +298,9 @@ class WorkflowManager:
                 line_idx = change.line_number - 1
                 if 0 <= line_idx < len(modified_lines):
                     line = modified_lines[line_idx]
-                    modified_line = line.replace(change.original_value, change.new_value)
+                    modified_line = line.replace(
+                        change.original_value, change.new_value
+                    )
                     modified_lines[line_idx] = modified_line
 
             # Generate unified diff
@@ -273,7 +309,7 @@ class WorkflowManager:
                 modified_lines,
                 fromfile=f"Original: {Path(file_path).name}",
                 tofile=f"Modified: {Path(file_path).name}",
-                lineterm=''
+                lineterm="",
             )
 
             # Generate side-by-side diff
@@ -281,26 +317,29 @@ class WorkflowManager:
             html_diff = htmldiff.make_table(
                 original_lines,
                 modified_lines,
-                fromdesc='Original',
-                todesc='Modified',
+                fromdesc="Original",
+                todesc="Modified",
                 context=True,
-                numlines=3
+                numlines=3,
             )
 
             return {
-                'unified_diff': list(diff),
-                'html_diff': html_diff,
-                'changes_count': len(changes),
-                'changes': [c.to_dict() for c in changes]
+                "unified_diff": list(diff),
+                "html_diff": html_diff,
+                "changes_count": len(changes),
+                "changes": [c.to_dict() for c in changes],
             }
 
         except Exception as e:
-            return {'error': str(e)}
+            return {"error": str(e)}
 
-    def approve_workflow(self, workflow_id: str,
-                        approver: str = None,
-                        selected_changes: Optional[List[int]] = None,
-                        comments: str = None) -> bool:
+    def approve_workflow(
+        self,
+        workflow_id: str,
+        approver: str = None,
+        selected_changes: Optional[List[int]] = None,
+        comments: str = None,
+    ) -> bool:
         """Approve a workflow for execution"""
         workflow = self.workflows.get(workflow_id)
         if not workflow:
@@ -311,22 +350,24 @@ class WorkflowManager:
 
         # Filter changes if specific ones selected
         if selected_changes is not None:
-            workflow.changes = [workflow.changes[i] for i in selected_changes
-                              if i < len(workflow.changes)]
+            workflow.changes = [
+                workflow.changes[i]
+                for i in selected_changes
+                if i < len(workflow.changes)
+            ]
 
         workflow.status = WorkflowStatus.APPROVED
         workflow.updated_at = datetime.now()
         workflow.approval_info = {
-            'approver': approver or os.environ.get('USER', 'unknown'),
-            'approved_at': datetime.now().isoformat(),
-            'changes_approved': len(workflow.changes),
-            'comments': comments
+            "approver": approver or os.environ.get("USER", "unknown"),
+            "approved_at": datetime.now().isoformat(),
+            "changes_approved": len(workflow.changes),
+            "comments": comments,
         }
 
         return True
 
-    def reject_workflow(self, workflow_id: str,
-                       reason: str = None) -> bool:
+    def reject_workflow(self, workflow_id: str, reason: str = None) -> bool:
         """Reject a workflow"""
         workflow = self.workflows.get(workflow_id)
         if not workflow:
@@ -335,8 +376,8 @@ class WorkflowManager:
         workflow.status = WorkflowStatus.REJECTED
         workflow.updated_at = datetime.now()
         workflow.approval_info = {
-            'rejected_at': datetime.now().isoformat(),
-            'reason': reason
+            "rejected_at": datetime.now().isoformat(),
+            "reason": reason,
         }
 
         return True
@@ -345,21 +386,21 @@ class WorkflowManager:
         """Execute an approved workflow"""
         workflow = self.workflows.get(workflow_id)
         if not workflow:
-            return {'error': 'Workflow not found'}
+            return {"error": "Workflow not found"}
 
         if workflow.status != WorkflowStatus.APPROVED:
-            return {'error': 'Workflow not approved'}
+            return {"error": "Workflow not approved"}
 
         workflow.status = WorkflowStatus.EXECUTING
         workflow.updated_at = datetime.now()
 
         execution_result = {
-            'workflow_id': workflow_id,
-            'started_at': datetime.now().isoformat(),
-            'files_processed': [],
-            'changes_applied': 0,
-            'backups_created': [],
-            'errors': []
+            "workflow_id": workflow_id,
+            "started_at": datetime.now().isoformat(),
+            "files_processed": [],
+            "changes_applied": 0,
+            "backups_created": [],
+            "errors": [],
         }
 
         try:
@@ -377,11 +418,11 @@ class WorkflowManager:
                     backup_metadata = self.backup_manager.create_backup(
                         file_path,
                         reason=f"Workflow {workflow_id}: {workflow.workflow_type}",
-                        changes={'changes_count': len(file_changes)}
+                        changes={"changes_count": len(file_changes)},
                     )
 
                     if backup_metadata:
-                        execution_result['backups_created'].append(
+                        execution_result["backups_created"].append(
                             backup_metadata.backup_path
                         )
 
@@ -389,42 +430,41 @@ class WorkflowManager:
                     success = self._apply_changes_to_file(file_path, file_changes)
 
                     if success:
-                        execution_result['files_processed'].append(file_path)
-                        execution_result['changes_applied'] += len(file_changes)
+                        execution_result["files_processed"].append(file_path)
+                        execution_result["changes_applied"] += len(file_changes)
                     else:
-                        execution_result['errors'].append(
+                        execution_result["errors"].append(
                             f"Failed to apply changes to {file_path}"
                         )
 
                 except Exception as e:
-                    execution_result['errors'].append(
+                    execution_result["errors"].append(
                         f"Error processing {file_path}: {str(e)}"
                     )
 
             # Update workflow status
-            if execution_result['errors']:
+            if execution_result["errors"]:
                 workflow.status = WorkflowStatus.FAILED
             else:
                 workflow.status = WorkflowStatus.COMPLETED
 
             workflow.updated_at = datetime.now()
             workflow.execution_result = execution_result
-            execution_result['completed_at'] = datetime.now().isoformat()
+            execution_result["completed_at"] = datetime.now().isoformat()
 
             # Move to history
             self.workflow_history.append(workflow)
 
         except Exception as e:
             workflow.status = WorkflowStatus.FAILED
-            execution_result['errors'].append(f"Workflow execution failed: {str(e)}")
+            execution_result["errors"].append(f"Workflow execution failed: {str(e)}")
 
         return execution_result
 
-    def _apply_changes_to_file(self, file_path: str,
-                              changes: List[Change]) -> bool:
+    def _apply_changes_to_file(self, file_path: str, changes: List[Change]) -> bool:
         """Apply changes to a single file"""
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 lines = f.readlines()
 
             # Sort changes by line number (reverse) to avoid index shifting
@@ -434,11 +474,13 @@ class WorkflowManager:
                 line_idx = change.line_number - 1
                 if 0 <= line_idx < len(lines):
                     line = lines[line_idx]
-                    modified_line = line.replace(change.original_value, change.new_value)
+                    modified_line = line.replace(
+                        change.original_value, change.new_value
+                    )
                     lines[line_idx] = modified_line
 
             # Write modified content back to file
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 f.writelines(lines)
 
             return True
@@ -447,8 +489,7 @@ class WorkflowManager:
             print(f"Error applying changes to {file_path}: {e}")
             return False
 
-    def rollback_workflow(self, workflow_id: str,
-                         reason: str = None) -> Dict[str, Any]:
+    def rollback_workflow(self, workflow_id: str, reason: str = None) -> Dict[str, Any]:
         """Rollback changes made by a workflow"""
         workflow = self.workflows.get(workflow_id)
         if not workflow:
@@ -459,43 +500,43 @@ class WorkflowManager:
                     break
 
         if not workflow:
-            return {'error': 'Workflow not found'}
+            return {"error": "Workflow not found"}
 
         if not workflow.execution_result:
-            return {'error': 'No execution result to rollback'}
+            return {"error": "No execution result to rollback"}
 
         rollback_result = {
-            'workflow_id': workflow_id,
-            'started_at': datetime.now().isoformat(),
-            'files_restored': [],
-            'errors': []
+            "workflow_id": workflow_id,
+            "started_at": datetime.now().isoformat(),
+            "files_restored": [],
+            "errors": [],
         }
 
         # Restore from backups
-        backups = workflow.execution_result.get('backups_created', [])
+        backups = workflow.execution_result.get("backups_created", [])
         for backup_path in backups:
             try:
                 success = self.backup_manager.restore_backup(backup_path)
                 if success:
-                    rollback_result['files_restored'].append(backup_path)
+                    rollback_result["files_restored"].append(backup_path)
                 else:
-                    rollback_result['errors'].append(
+                    rollback_result["errors"].append(
                         f"Failed to restore from {backup_path}"
                     )
             except Exception as e:
-                rollback_result['errors'].append(
+                rollback_result["errors"].append(
                     f"Error restoring {backup_path}: {str(e)}"
                 )
 
         workflow.status = WorkflowStatus.ROLLED_BACK
         workflow.updated_at = datetime.now()
         workflow.rollback_info = {
-            'rolled_back_at': datetime.now().isoformat(),
-            'reason': reason,
-            'result': rollback_result
+            "rolled_back_at": datetime.now().isoformat(),
+            "reason": reason,
+            "result": rollback_result,
         }
 
-        rollback_result['completed_at'] = datetime.now().isoformat()
+        rollback_result["completed_at"] = datetime.now().isoformat()
         return rollback_result
 
     def get_workflow_status(self, workflow_id: str) -> Optional[Dict]:
@@ -511,11 +552,12 @@ class WorkflowManager:
 
         return None
 
-    def format_substitution_workflow(self, file_paths: List[str],
-                                    user: str = None) -> str:
+    def format_substitution_workflow(
+        self, file_paths: List[str], user: str = None
+    ) -> str:
         """High-level workflow for formatting substitution files"""
         # Create workflow
-        workflow_id = self.create_workflow('format_substitutions', file_paths, user)
+        workflow_id = self.create_workflow("format_substitutions", file_paths, user)
 
         # Analyze files
         analysis = self.analyze_files(workflow_id)
@@ -534,19 +576,19 @@ class WorkflowManager:
 
         return workflow_id
 
-    def batch_update_workflow(self, file_paths: List[str],
-                            update_function: Callable,
-                            user: str = None) -> str:
+    def batch_update_workflow(
+        self, file_paths: List[str], update_function: Callable, user: str = None
+    ) -> str:
         """Workflow for batch updates across multiple files"""
         # Create workflow
-        workflow_id = self.create_workflow('batch_update', file_paths, user)
+        workflow_id = self.create_workflow("batch_update", file_paths, user)
 
         workflow = self.workflows[workflow_id]
 
         # Apply update function to generate changes
         for file_path in file_paths:
             try:
-                with open(file_path, 'r') as f:
+                with open(file_path, "r") as f:
                     content = f.read()
 
                 # Apply user function
@@ -560,7 +602,7 @@ class WorkflowManager:
                         new_value=modified_content[:100],
                         change_type=ChangeType.BATCH_UPDATE,
                         description="Batch update applied",
-                        auto_approved=False
+                        auto_approved=False,
                     )
                     workflow.changes.append(change)
 
@@ -569,6 +611,7 @@ class WorkflowManager:
 
         workflow.status = WorkflowStatus.AWAITING_APPROVAL
         return workflow_id
+
 
 # Example usage
 if __name__ == "__main__":
@@ -601,9 +644,11 @@ if __name__ == "__main__":
         print(f"  Total changes: {preview['total_changes']}")
 
         # Simulate approval
-        if analysis['auto_fixable'] > 0:
+        if analysis["auto_fixable"] > 0:
             print("\nApproving workflow...")
-            manager.approve_workflow(workflow_id, comments="Auto-approved fixable issues")
+            manager.approve_workflow(
+                workflow_id, comments="Auto-approved fixable issues"
+            )
 
             # Execute
             print("Executing workflow...")
@@ -613,5 +658,5 @@ if __name__ == "__main__":
             print(f"  Changes applied: {result['changes_applied']}")
             print(f"  Backups created: {len(result['backups_created'])}")
 
-            if result['errors']:
+            if result["errors"]:
                 print(f"  Errors: {result['errors']}")

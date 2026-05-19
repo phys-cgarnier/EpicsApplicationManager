@@ -25,6 +25,7 @@ from datetime import datetime
 @dataclass
 class MacroMapping:
     """Represents macro substitutions needed for consolidation"""
+
     original_value: str
     macro_name: str
     description: str
@@ -34,6 +35,7 @@ class MacroMapping:
 @dataclass
 class ConsolidationPlan:
     """Plan for consolidating multiple files into a template"""
+
     target_name: str
     source_files: List[str]
     common_records: List[Dict[str, Any]]
@@ -62,7 +64,7 @@ class TemplateConsolidator:
 
         # Read and parse all files
         for filepath in files:
-            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
                 self.file_contents[str(filepath)] = content
                 self.parsed_records[str(filepath)] = self._parse_records(content)
@@ -89,13 +91,15 @@ class TemplateConsolidator:
             variable_records=variable_records,
             new_macros=new_macros,
             substitution_mappings=sub_mappings,
-            savings=savings
+            savings=savings,
         )
 
     def _parse_records(self, content: str) -> List[Dict]:
         """Parse EPICS records from file content"""
         records = []
-        record_pattern = re.compile(r'record\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)\s*{([^}]+)}', re.DOTALL)
+        record_pattern = re.compile(
+            r'record\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)\s*{([^}]+)}', re.DOTALL
+        )
 
         for match in record_pattern.finditer(content):
             record_type = match.group(1)
@@ -108,16 +112,20 @@ class TemplateConsolidator:
             for field_match in field_pattern.finditer(record_body):
                 fields[field_match.group(1)] = field_match.group(2)
 
-            records.append({
-                'type': record_type,
-                'name': record_name,
-                'fields': fields,
-                'raw': match.group(0)
-            })
+            records.append(
+                {
+                    "type": record_type,
+                    "name": record_name,
+                    "fields": fields,
+                    "raw": match.group(0),
+                }
+            )
 
         return records
 
-    def _find_common_structure(self, files: List[Path]) -> Tuple[List[Dict], List[Dict]]:
+    def _find_common_structure(
+        self, files: List[Path]
+    ) -> Tuple[List[Dict], List[Dict]]:
         """Find records that are common vs variable across files"""
         all_records = []
         for filepath in files:
@@ -140,7 +148,7 @@ class TemplateConsolidator:
             else:
                 # Record varies between files
                 for _, record, source in group:
-                    record['source_file'] = source
+                    record["source_file"] = source
                     variable_records.append(record)
 
         return common_records, variable_records
@@ -148,13 +156,15 @@ class TemplateConsolidator:
     def _get_record_signature(self, record: Dict) -> str:
         """Get normalized signature for record comparison"""
         # Create signature from type and field names (not values)
-        field_names = sorted(record['fields'].keys())
+        field_names = sorted(record["fields"].keys())
         # Normalize the record name to ignore macro differences
-        normalized_name = re.sub(r'\$\([^)]+\)', 'MACRO', record['name'])
-        normalized_name = re.sub(r'[0-9]+', 'NUM', normalized_name)
+        normalized_name = re.sub(r"\$\([^)]+\)", "MACRO", record["name"])
+        normalized_name = re.sub(r"[0-9]+", "NUM", normalized_name)
         return f"{record['type']}:{normalized_name}:{','.join(field_names)}"
 
-    def _identify_macros(self, files: List[Path], variable_records: List[Dict]) -> List[MacroMapping]:
+    def _identify_macros(
+        self, files: List[Path], variable_records: List[Dict]
+    ) -> List[MacroMapping]:
         """Identify macros needed for consolidation"""
         macros = []
         macro_counter = 1
@@ -162,9 +172,9 @@ class TemplateConsolidator:
         # Analyze differences in record names
         name_variations = defaultdict(set)
         for record in variable_records:
-            base_name = re.sub(r'[0-9]+', '', record['name'])
-            base_name = re.sub(r'\$\([^)]+\)', '', base_name)
-            name_variations[base_name].add(record['name'])
+            base_name = re.sub(r"[0-9]+", "", record["name"])
+            base_name = re.sub(r"\$\([^)]+\)", "", base_name)
+            name_variations[base_name].add(record["name"])
 
         # Create macros for varying parts
         for base_name, variations in name_variations.items():
@@ -173,7 +183,7 @@ class TemplateConsolidator:
                 varying_parts = set()
                 for name in variations:
                     # Extract parts that vary
-                    match = re.search(r'([0-9]+|[A-Z]+[0-9]+)', name)
+                    match = re.search(r"([0-9]+|[A-Z]+[0-9]+)", name)
                     if match:
                         varying_parts.add(match.group(1))
 
@@ -182,7 +192,7 @@ class TemplateConsolidator:
                         original_value=list(varying_parts)[0],
                         macro_name=f"VAR{macro_counter}",
                         description=f"Variable part for {base_name}",
-                        files_using=[str(f) for f in files]
+                        files_using=[str(f) for f in files],
                     )
                     macros.append(macro)
                     macro_counter += 1
@@ -190,9 +200,9 @@ class TemplateConsolidator:
         # Analyze differences in field values
         field_variations = defaultdict(lambda: defaultdict(set))
         for record in variable_records:
-            for field_name, field_value in record['fields'].items():
-                if not re.match(r'\$\(', field_value):  # Not already a macro
-                    field_variations[record['type']][field_name].add(field_value)
+            for field_name, field_value in record["fields"].items():
+                if not re.match(r"\$\(", field_value):  # Not already a macro
+                    field_variations[record["type"]][field_name].add(field_value)
 
         # Create macros for varying field values
         for record_type, fields in field_variations.items():
@@ -202,14 +212,15 @@ class TemplateConsolidator:
                         original_value=list(values)[0],
                         macro_name=f"{field_name.upper()}_VAR",
                         description=f"Variable {field_name} for {record_type}",
-                        files_using=[str(f) for f in files]
+                        files_using=[str(f) for f in files],
                     )
                     macros.append(macro)
 
         return macros
 
-    def _create_substitution_mappings(self, files: List[Path],
-                                     macros: List[MacroMapping]) -> Dict[str, Dict[str, str]]:
+    def _create_substitution_mappings(
+        self, files: List[Path], macros: List[MacroMapping]
+    ) -> Dict[str, Dict[str, str]]:
         """Create macro substitution mappings for each file"""
         mappings = {}
 
@@ -219,40 +230,54 @@ class TemplateConsolidator:
 
             # Extract identifying parts from filename
             filename = Path(filepath).stem
-            parts = re.findall(r'(c[0-9]+|[0-9]+k|cb|kb)', filename)
+            parts = re.findall(r"(c[0-9]+|[0-9]+k|cb|kb)", filename)
 
             # Map macros based on file-specific values
             for macro in macros:
                 # Determine value for this file
-                if 'c1' in filename:
-                    file_mappings[macro.macro_name] = macro.original_value.replace('c2', 'c1')
-                elif 'c2' in filename:
-                    file_mappings[macro.macro_name] = macro.original_value.replace('c1', 'c2')
+                if "c1" in filename:
+                    file_mappings[macro.macro_name] = macro.original_value.replace(
+                        "c2", "c1"
+                    )
+                elif "c2" in filename:
+                    file_mappings[macro.macro_name] = macro.original_value.replace(
+                        "c1", "c2"
+                    )
                 else:
                     file_mappings[macro.macro_name] = macro.original_value
 
             # Add standard macros
-            file_mappings['SYSTEM'] = filename.split('_')[0] if '_' in filename else 'system'
+            file_mappings["SYSTEM"] = (
+                filename.split("_")[0] if "_" in filename else "system"
+            )
 
             mappings[file_str] = file_mappings
 
         return mappings
 
-    def _calculate_savings(self, files: List[Path], common_records: List[Dict],
-                          variable_records: List[Dict]) -> Dict[str, Any]:
+    def _calculate_savings(
+        self,
+        files: List[Path],
+        common_records: List[Dict],
+        variable_records: List[Dict],
+    ) -> Dict[str, Any]:
         """Calculate benefits of consolidation"""
         total_lines = sum(len(self.file_contents[str(f)].splitlines()) for f in files)
         template_lines = len(common_records) * 10  # Estimate lines per record
 
         return {
-            'files_consolidated': len(files),
-            'original_total_lines': total_lines,
-            'template_lines': template_lines,
-            'line_reduction': total_lines - template_lines,
-            'reduction_percentage': ((total_lines - template_lines) / total_lines * 100) if total_lines > 0 else 0,
-            'common_records': len(common_records),
-            'variable_records': len(variable_records),
-            'maintenance_factor': len(files)  # How many places need updates currently
+            "files_consolidated": len(files),
+            "original_total_lines": total_lines,
+            "template_lines": template_lines,
+            "line_reduction": total_lines - template_lines,
+            "reduction_percentage": (
+                ((total_lines - template_lines) / total_lines * 100)
+                if total_lines > 0
+                else 0
+            ),
+            "common_records": len(common_records),
+            "variable_records": len(variable_records),
+            "maintenance_factor": len(files),  # How many places need updates currently
         }
 
     def _suggest_template_name(self, files: List[Path]) -> str:
@@ -263,14 +288,14 @@ class TemplateConsolidator:
         common_prefix = os.path.commonprefix(names)
         if common_prefix:
             # Clean up prefix
-            common_prefix = common_prefix.rstrip('_0123456789')
+            common_prefix = common_prefix.rstrip("_0123456789")
             return f"{common_prefix}_template.vdb"
 
         # Find common patterns
         patterns = []
         for name in names:
-            pattern = re.sub(r'c[0-9]+_', '', name)  # Remove system prefix
-            pattern = re.sub(r'[0-9]+', '', pattern)  # Remove numbers
+            pattern = re.sub(r"c[0-9]+_", "", name)  # Remove system prefix
+            pattern = re.sub(r"[0-9]+", "", pattern)  # Remove numbers
             patterns.append(pattern)
 
         # Most common pattern
@@ -306,17 +331,19 @@ class TemplateConsolidator:
         # Generate records
         for record in plan.common_records:
             template.append(f'record({record["type"]}, "{record["name"]}") {{')
-            for field_name, field_value in record['fields'].items():
+            for field_name, field_value in record["fields"].items():
                 # Apply macro substitutions where needed
                 for macro in plan.new_macros:
                     if macro.original_value in field_value:
-                        field_value = field_value.replace(macro.original_value, f"$({macro.macro_name})")
+                        field_value = field_value.replace(
+                            macro.original_value, f"$({macro.macro_name})"
+                        )
 
                 template.append(f'  field({field_name}, "{field_value}")')
             template.append("}")
             template.append("")
 
-        return '\n'.join(template)
+        return "\n".join(template)
 
     def generate_substitution_file(self, plan: ConsolidationPlan) -> str:
         """Generate substitution file for the consolidated template"""
@@ -350,7 +377,7 @@ class TemplateConsolidator:
         sub_file.append("}")
         sub_file.append("")
 
-        return '\n'.join(sub_file)
+        return "\n".join(sub_file)
 
     def generate_migration_script(self, plan: ConsolidationPlan) -> str:
         """Generate a migration script for the consolidation"""
@@ -375,7 +402,9 @@ class TemplateConsolidator:
         script.append("echo 'Creating backups...'")
         for source in plan.source_files:
             filename = Path(source).name
-            script.append(f"cp {filename} {filename}.backup 2>/dev/null || echo 'Warning: {filename} not found'")
+            script.append(
+                f"cp {filename} {filename}.backup 2>/dev/null || echo 'Warning: {filename} not found'"
+            )
         script.append("")
 
         # Create new template
@@ -388,7 +417,7 @@ class TemplateConsolidator:
 
         # Create substitution file
         script.append("# Step 3: Create substitution file")
-        sub_filename = plan.target_name.replace('.vdb', '.substitutions')
+        sub_filename = plan.target_name.replace(".vdb", ".substitutions")
         script.append(f"echo 'Creating {sub_filename}...'")
         script.append(f"cat > {sub_filename} << 'EOF'")
         script.append("# [Substitution content would be inserted here]")
@@ -402,8 +431,8 @@ class TemplateConsolidator:
         script.append("# Example:")
         for source in plan.source_files[:2]:
             filename = Path(source).name
-            script.append(f"# Replace: dbLoadRecords(\"db/{filename}\")")
-        script.append(f"# With: dbLoadTemplate(\"db/{sub_filename}\")")
+            script.append(f'# Replace: dbLoadRecords("db/{filename}")')
+        script.append(f'# With: dbLoadTemplate("db/{sub_filename}")')
         script.append("")
 
         # Validation
@@ -415,13 +444,13 @@ class TemplateConsolidator:
         script.append("echo 'Migration complete!'")
         script.append("echo 'Please review the changes and test before committing.'")
 
-        return '\n'.join(script)
+        return "\n".join(script)
 
 
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description='EPICS Template Consolidator - Consolidate similar database files into templates',
+        description="EPICS Template Consolidator - Consolidate similar database files into templates",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -436,40 +465,47 @@ Examples:
 
   # Interactive consolidation wizard
   %(prog)s wizard /path/to/db/directory
-        """
+        """,
     )
 
-    subparsers = parser.add_subparsers(dest='command', help='Command to execute')
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     # Analyze command
-    analyze_parser = subparsers.add_parser('analyze',
-                                          help='Analyze consolidation potential')
-    analyze_parser.add_argument('files', nargs='+', help='Files to consolidate')
+    analyze_parser = subparsers.add_parser(
+        "analyze", help="Analyze consolidation potential"
+    )
+    analyze_parser.add_argument("files", nargs="+", help="Files to consolidate")
 
     # Generate command
-    generate_parser = subparsers.add_parser('generate',
-                                           help='Generate consolidated template')
-    generate_parser.add_argument('files', nargs='+', help='Files to consolidate')
-    generate_parser.add_argument('-o', '--output', help='Output template file')
-    generate_parser.add_argument('--substitutions', action='store_true',
-                                help='Also generate substitution file')
+    generate_parser = subparsers.add_parser(
+        "generate", help="Generate consolidated template"
+    )
+    generate_parser.add_argument("files", nargs="+", help="Files to consolidate")
+    generate_parser.add_argument("-o", "--output", help="Output template file")
+    generate_parser.add_argument(
+        "--substitutions", action="store_true", help="Also generate substitution file"
+    )
 
     # Package command
-    package_parser = subparsers.add_parser('package',
-                                          help='Create full consolidation package')
-    package_parser.add_argument('files', nargs='+', help='Files to consolidate')
-    package_parser.add_argument('--output-dir', default='./consolidated',
-                               help='Output directory')
+    package_parser = subparsers.add_parser(
+        "package", help="Create full consolidation package"
+    )
+    package_parser.add_argument("files", nargs="+", help="Files to consolidate")
+    package_parser.add_argument(
+        "--output-dir", default="./consolidated", help="Output directory"
+    )
 
     # Wizard command
-    wizard_parser = subparsers.add_parser('wizard',
-                                         help='Interactive consolidation wizard')
-    wizard_parser.add_argument('directory', help='Directory to analyze')
+    wizard_parser = subparsers.add_parser(
+        "wizard", help="Interactive consolidation wizard"
+    )
+    wizard_parser.add_argument("directory", help="Directory to analyze")
 
     # Add verbose flag to all subparsers
     for subparser in [analyze_parser, generate_parser, package_parser, wizard_parser]:
-        subparser.add_argument('-v', '--verbose', action='store_true',
-                             help='Verbose output')
+        subparser.add_argument(
+            "-v", "--verbose", action="store_true", help="Verbose output"
+        )
 
     args = parser.parse_args()
 
@@ -477,9 +513,11 @@ Examples:
         parser.print_help()
         sys.exit(1)
 
-    consolidator = TemplateConsolidator(verbose=args.verbose if hasattr(args, 'verbose') else False)
+    consolidator = TemplateConsolidator(
+        verbose=args.verbose if hasattr(args, "verbose") else False
+    )
 
-    if args.command == 'analyze':
+    if args.command == "analyze":
         files = [Path(f) for f in args.files]
         plan = consolidator.analyze_files(files)
 
@@ -499,10 +537,12 @@ Examples:
 
         print(f"\nSavings:")
         savings = plan.savings
-        print(f"  Line reduction: {savings['line_reduction']} ({savings['reduction_percentage']:.1f}%)")
+        print(
+            f"  Line reduction: {savings['line_reduction']} ({savings['reduction_percentage']:.1f}%)"
+        )
         print(f"  Maintenance points: {savings['maintenance_factor']} -> 1")
 
-    elif args.command == 'generate':
+    elif args.command == "generate":
         files = [Path(f) for f in args.files]
         plan = consolidator.analyze_files(files)
 
@@ -510,19 +550,21 @@ Examples:
         template_content = consolidator.generate_template(plan)
 
         output_file = args.output or plan.target_name
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             f.write(template_content)
         print(f"Generated template: {output_file}")
 
         if args.substitutions:
             # Generate substitution file
             sub_content = consolidator.generate_substitution_file(plan)
-            sub_file = output_file.replace('.vdb', '.substitutions').replace('.db', '.substitutions')
-            with open(sub_file, 'w') as f:
+            sub_file = output_file.replace(".vdb", ".substitutions").replace(
+                ".db", ".substitutions"
+            )
+            with open(sub_file, "w") as f:
                 f.write(sub_content)
             print(f"Generated substitutions: {sub_file}")
 
-    elif args.command == 'package':
+    elif args.command == "package":
         files = [Path(f) for f in args.files]
         plan = consolidator.analyze_files(files)
 
@@ -532,29 +574,31 @@ Examples:
 
         # Generate all files
         template_file = output_dir / plan.target_name
-        with open(template_file, 'w') as f:
+        with open(template_file, "w") as f:
             f.write(consolidator.generate_template(plan))
 
-        sub_file = output_dir / plan.target_name.replace('.vdb', '.substitutions')
-        with open(sub_file, 'w') as f:
+        sub_file = output_dir / plan.target_name.replace(".vdb", ".substitutions")
+        with open(sub_file, "w") as f:
             f.write(consolidator.generate_substitution_file(plan))
 
-        migration_file = output_dir / 'migrate.sh'
-        with open(migration_file, 'w') as f:
+        migration_file = output_dir / "migrate.sh"
+        with open(migration_file, "w") as f:
             f.write(consolidator.generate_migration_script(plan))
 
         # Save plan as JSON
-        plan_file = output_dir / 'consolidation_plan.json'
+        plan_file = output_dir / "consolidation_plan.json"
         plan_dict = {
-            'target_name': plan.target_name,
-            'source_files': plan.source_files,
-            'common_records_count': len(plan.common_records),
-            'variable_records_count': len(plan.variable_records),
-            'new_macros': [{'name': m.macro_name, 'description': m.description}
-                          for m in plan.new_macros],
-            'savings': plan.savings
+            "target_name": plan.target_name,
+            "source_files": plan.source_files,
+            "common_records_count": len(plan.common_records),
+            "variable_records_count": len(plan.variable_records),
+            "new_macros": [
+                {"name": m.macro_name, "description": m.description}
+                for m in plan.new_macros
+            ],
+            "savings": plan.savings,
         }
-        with open(plan_file, 'w') as f:
+        with open(plan_file, "w") as f:
             json.dump(plan_dict, f, indent=2)
 
         print(f"Consolidation package created in {output_dir}")
@@ -563,7 +607,7 @@ Examples:
         print(f"  - Migration script: {migration_file.name}")
         print(f"  - Plan details: {plan_file.name}")
 
-    elif args.command == 'wizard':
+    elif args.command == "wizard":
         # Interactive wizard for consolidation
         directory = Path(args.directory)
 
@@ -573,7 +617,7 @@ Examples:
         print()
 
         # Find all .db files
-        db_files = list(directory.glob('*.db'))
+        db_files = list(directory.glob("*.db"))
         print(f"Found {len(db_files)} .db files")
 
         # Group similar files by name pattern
@@ -581,8 +625,8 @@ Examples:
         for filepath in db_files:
             # Extract base pattern
             name = filepath.stem
-            pattern = re.sub(r'c[0-9]+_', '', name)  # Remove system prefix
-            pattern = re.sub(r'[0-9]+', 'X', pattern)  # Replace numbers with X
+            pattern = re.sub(r"c[0-9]+_", "", name)  # Remove system prefix
+            pattern = re.sub(r"[0-9]+", "X", pattern)  # Replace numbers with X
             groups[pattern].append(filepath)
 
         # Show consolidation opportunities
@@ -603,10 +647,10 @@ Examples:
             return
 
         # Let user select
-        print("\nEnter group number to consolidate (or 'q' to quit): ", end='')
+        print("\nEnter group number to consolidate (or 'q' to quit): ", end="")
         choice = input().strip()
 
-        if choice.lower() == 'q':
+        if choice.lower() == "q":
             return
 
         try:
@@ -618,12 +662,16 @@ Examples:
                 plan = consolidator.analyze_files(selected_files)
 
                 # Create output directory
-                output_dir = directory / 'consolidated' / datetime.now().strftime('%Y%m%d_%H%M%S')
+                output_dir = (
+                    directory
+                    / "consolidated"
+                    / datetime.now().strftime("%Y%m%d_%H%M%S")
+                )
                 output_dir.mkdir(parents=True, exist_ok=True)
 
                 # Generate files
                 template_file = output_dir / plan.target_name
-                with open(template_file, 'w') as f:
+                with open(template_file, "w") as f:
                     f.write(consolidator.generate_template(plan))
 
                 print(f"\nConsolidation complete!")
@@ -636,5 +684,5 @@ Examples:
             print("Invalid input")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

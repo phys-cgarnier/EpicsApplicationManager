@@ -18,9 +18,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
+
 @dataclass
 class PVInfo:
     """Information about a Process Variable"""
+
     pv_name: str
     source_file: str
     template: str
@@ -34,20 +36,22 @@ class PVInfo:
     def to_dict(self) -> Dict:
         """Convert to dictionary"""
         return {
-            'pv_name': self.pv_name,
-            'source_file': self.source_file,
-            'template': self.template,
-            'pv_type': self.pv_type,
-            'description': self.description,
-            'engineering_units': self.engineering_units,
-            'expected_range': self.expected_range,
-            'update_rate': self.update_rate,
-            'macros': self.macros
+            "pv_name": self.pv_name,
+            "source_file": self.source_file,
+            "template": self.template,
+            "pv_type": self.pv_type,
+            "description": self.description,
+            "engineering_units": self.engineering_units,
+            "expected_range": self.expected_range,
+            "update_rate": self.update_rate,
+            "macros": self.macros,
         }
+
 
 @dataclass
 class ArchiveEntry:
     """Represents an archive configuration entry"""
+
     pv_name: str
     sampling_period: int  # seconds
     sampling_method: str  # 'scan' or 'monitor'
@@ -58,51 +62,49 @@ class ArchiveEntry:
         """Convert to archive file format"""
         return f"{self.pv_name} {self.sampling_period} {self.sampling_method}"
 
+
 class SamplingRateOptimizer:
     """Optimizes sampling rates based on PV type and characteristics"""
 
     # Default sampling rates by PV type (in seconds)
     DEFAULT_RATES = {
         # Analog inputs
-        'temperature': 10,    # Temperature sensors - slow changing
-        'pressure': 5,        # Pressure sensors - medium speed
-        'flow': 1,           # Flow meters - fast changing
-        'level': 5,          # Level sensors
-        'voltage': 1,        # Voltage measurements
-        'current': 1,        # Current measurements
-        'power': 5,          # Power measurements
-
+        "temperature": 10,  # Temperature sensors - slow changing
+        "pressure": 5,  # Pressure sensors - medium speed
+        "flow": 1,  # Flow meters - fast changing
+        "level": 5,  # Level sensors
+        "voltage": 1,  # Voltage measurements
+        "current": 1,  # Current measurements
+        "power": 5,  # Power measurements
         # Digital inputs
-        'valve_state': 1,    # Valve positions - use monitor
-        'pump_state': 1,     # Pump status - use monitor
-        'alarm': 1,          # Alarms - use monitor
-        'interlock': 1,      # Interlocks - use monitor
-
+        "valve_state": 1,  # Valve positions - use monitor
+        "pump_state": 1,  # Pump status - use monitor
+        "alarm": 1,  # Alarms - use monitor
+        "interlock": 1,  # Interlocks - use monitor
         # Calculated values
-        'calc': 5,           # Calculated values
-        'statistics': 60,    # Statistical values
-        'setpoint': 1,       # Setpoints - use monitor
-
+        "calc": 5,  # Calculated values
+        "statistics": 60,  # Statistical values
+        "setpoint": 1,  # Setpoints - use monitor
         # System values
-        'heartbeat': 60,     # Heartbeat/alive signals
-        'status': 5,         # Status indicators
-        'counter': 1,        # Counters - use monitor
+        "heartbeat": 60,  # Heartbeat/alive signals
+        "status": 5,  # Status indicators
+        "counter": 1,  # Counters - use monitor
     }
 
     # Patterns to identify PV types
     TYPE_PATTERNS = {
-        'temperature': [r'.*T[TI]\d+', r'.*TEMP.*', r'.*_T$', r'.*:T$'],
-        'pressure': [r'.*P[TI]\d+', r'.*PRESS.*', r'.*PDT\d+', r'.*:P$', r'.*:DP$'],
-        'flow': [r'.*F[TI]\d+', r'.*FLOW.*', r'.*:FLOW$'],
-        'level': [r'.*L[TI]\d+', r'.*LEVEL.*', r'.*:LVL$'],
-        'valve_state': [r'.*VLV.*', r'.*VALVE.*', r'.*:STATE$'],
-        'pump_state': [r'.*PUMP.*', r'.*:RUN$', r'.*:ON$'],
-        'alarm': [r'.*ALARM.*', r'.*_ALM$', r'.*:ALM$'],
-        'calc': [r'.*CALC.*', r'.*:AVG$', r'.*:SUM$', r'.*:RATE$'],
-        'setpoint': [r'.*_SP$', r'.*:SP$', r'.*SETP.*'],
-        'heartbeat': [r'.*HEARTBEAT.*', r'.*:HB$', r'.*ALIVE.*'],
-        'status': [r'.*STATUS.*', r'.*:STS$', r'.*:STAT$'],
-        'counter': [r'.*CNT\d+', r'.*COUNT.*', r'.*:CNT$']
+        "temperature": [r".*T[TI]\d+", r".*TEMP.*", r".*_T$", r".*:T$"],
+        "pressure": [r".*P[TI]\d+", r".*PRESS.*", r".*PDT\d+", r".*:P$", r".*:DP$"],
+        "flow": [r".*F[TI]\d+", r".*FLOW.*", r".*:FLOW$"],
+        "level": [r".*L[TI]\d+", r".*LEVEL.*", r".*:LVL$"],
+        "valve_state": [r".*VLV.*", r".*VALVE.*", r".*:STATE$"],
+        "pump_state": [r".*PUMP.*", r".*:RUN$", r".*:ON$"],
+        "alarm": [r".*ALARM.*", r".*_ALM$", r".*:ALM$"],
+        "calc": [r".*CALC.*", r".*:AVG$", r".*:SUM$", r".*:RATE$"],
+        "setpoint": [r".*_SP$", r".*:SP$", r".*SETP.*"],
+        "heartbeat": [r".*HEARTBEAT.*", r".*:HB$", r".*ALIVE.*"],
+        "status": [r".*STATUS.*", r".*:STS$", r".*:STAT$"],
+        "counter": [r".*CNT\d+", r".*COUNT.*", r".*:CNT$"],
     }
 
     @classmethod
@@ -119,29 +121,30 @@ class SamplingRateOptimizer:
         # Check description if available
         if pv_info and pv_info.description:
             desc_upper = pv_info.description.upper()
-            if 'TEMP' in desc_upper:
-                return 'temperature'
-            elif 'PRESS' in desc_upper or 'PDT' in desc_upper:
-                return 'pressure'
-            elif 'FLOW' in desc_upper:
-                return 'flow'
-            elif 'VALVE' in desc_upper or 'VLV' in desc_upper:
-                return 'valve_state'
-            elif 'PUMP' in desc_upper:
-                return 'pump_state'
+            if "TEMP" in desc_upper:
+                return "temperature"
+            elif "PRESS" in desc_upper or "PDT" in desc_upper:
+                return "pressure"
+            elif "FLOW" in desc_upper:
+                return "flow"
+            elif "VALVE" in desc_upper or "VLV" in desc_upper:
+                return "valve_state"
+            elif "PUMP" in desc_upper:
+                return "pump_state"
 
         # Default based on record type if available
         if pv_info and pv_info.pv_type:
-            if pv_info.pv_type in ['BI', 'BO', 'MBBI', 'MBBO']:
-                return 'valve_state'  # Digital - use monitor
-            elif pv_info.pv_type in ['AI', 'AO']:
-                return 'pressure'  # Analog - medium rate
+            if pv_info.pv_type in ["BI", "BO", "MBBI", "MBBO"]:
+                return "valve_state"  # Digital - use monitor
+            elif pv_info.pv_type in ["AI", "AO"]:
+                return "pressure"  # Analog - medium rate
 
-        return 'status'  # Default type
+        return "status"  # Default type
 
     @classmethod
-    def get_sampling_config(cls, pv_name: str,
-                           pv_info: Optional[PVInfo] = None) -> Tuple[int, str]:
+    def get_sampling_config(
+        cls, pv_name: str, pv_info: Optional[PVInfo] = None
+    ) -> Tuple[int, str]:
         """Get optimal sampling period and method for a PV"""
         pv_type = cls.determine_pv_type(pv_name, pv_info)
 
@@ -150,12 +153,18 @@ class SamplingRateOptimizer:
 
         # Determine method (scan vs monitor)
         # Use 'monitor' for state changes, 'scan' for continuous values
-        if pv_type in ['valve_state', 'pump_state', 'alarm', 'interlock',
-                      'setpoint', 'counter']:
-            method = 'monitor'
+        if pv_type in [
+            "valve_state",
+            "pump_state",
+            "alarm",
+            "interlock",
+            "setpoint",
+            "counter",
+        ]:
+            method = "monitor"
             rate = 1  # For monitor mode, use 1 second deadband
         else:
-            method = 'scan'
+            method = "scan"
 
         # Adjust based on additional info
         if pv_info:
@@ -165,6 +174,7 @@ class SamplingRateOptimizer:
                     rate = max(1, int(pv_info.update_rate))
 
         return rate, method
+
 
 class ArchiveManager:
     """Manages archive file generation and synchronization"""
@@ -180,14 +190,14 @@ class ArchiveManager:
         pvs = []
 
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 lines = f.readlines()
 
             current_template = None
             current_pattern = []
-            file_regex = re.compile(r'^file\s+([A-Za-z0-9_\-\.]+)')
-            pattern_regex = re.compile(r'^\s*pattern\s*{(.+)}', re.IGNORECASE)
-            data_regex = re.compile(r'^\s*{(.+)}')
+            file_regex = re.compile(r"^file\s+([A-Za-z0-9_\-\.]+)")
+            pattern_regex = re.compile(r"^\s*pattern\s*{(.+)}", re.IGNORECASE)
+            data_regex = re.compile(r"^\s*{(.+)}")
 
             for line in lines:
                 line_stripped = line.strip()
@@ -203,17 +213,20 @@ class ArchiveManager:
                 pattern_match = pattern_regex.match(line_stripped)
                 if pattern_match:
                     pattern_str = pattern_match.group(1)
-                    current_pattern = [p.strip() for p in
-                                     re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)',
-                                            pattern_str)]
+                    current_pattern = [
+                        p.strip()
+                        for p in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', pattern_str)
+                    ]
                     continue
 
                 # Process data rows
                 data_match = data_regex.match(line_stripped)
                 if data_match and current_pattern and current_template:
                     data_str = data_match.group(1)
-                    values = [v.strip().strip('"') for v in
-                            re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', data_str)]
+                    values = [
+                        v.strip().strip('"')
+                        for v in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', data_str)
+                    ]
 
                     # Create PV info from the data
                     if len(values) >= len(current_pattern):
@@ -228,73 +241,94 @@ class ArchiveManager:
                         egu = None
 
                         # Look for common PV name patterns
-                        if 'PIDTAG' in macros:
+                        if "PIDTAG" in macros:
                             # Build PV name from PIDTAG and other components
-                            pidtag = macros['PIDTAG']
-                            area = macros.get('AREA', '')
-                            loca = macros.get('LOCA', '')
+                            pidtag = macros["PIDTAG"]
+                            area = macros.get("AREA", "")
+                            loca = macros.get("LOCA", "")
 
                             # Determine PV prefix based on template name
-                            if 'cpdt' in current_template.lower():
-                                prefix = 'CPDT'
-                                pv_type = 'pressure'
-                            elif 'cft' in current_template.lower() or 'flow' in current_template.lower():
-                                prefix = 'CFT'
-                                pv_type = 'flow'
-                            elif 'ctt' in current_template.lower() or 'temp' in current_template.lower():
-                                prefix = 'CTT'
-                                pv_type = 'temperature'
-                            elif 'valve' in current_template.lower():
-                                prefix = 'CVL'
-                                pv_type = 'valve_state'
+                            if "cpdt" in current_template.lower():
+                                prefix = "CPDT"
+                                pv_type = "pressure"
+                            elif (
+                                "cft" in current_template.lower()
+                                or "flow" in current_template.lower()
+                            ):
+                                prefix = "CFT"
+                                pv_type = "flow"
+                            elif (
+                                "ctt" in current_template.lower()
+                                or "temp" in current_template.lower()
+                            ):
+                                prefix = "CTT"
+                                pv_type = "temperature"
+                            elif "valve" in current_template.lower():
+                                prefix = "CVL"
+                                pv_type = "valve_state"
                             else:
                                 prefix = pidtag[:3].upper()
-                                pv_type = 'status'
+                                pv_type = "status"
 
                             # Build PV name
                             if area and loca:
                                 pv_name = f"{prefix}:{area}:{loca}"
 
                                 # Add suffix based on template
-                                if 'diff_pressure' in current_template:
+                                if "diff_pressure" in current_template:
                                     pv_name += ":DP"
-                                elif 'flow' in current_template:
+                                elif "flow" in current_template:
                                     pv_name += ":FLOW"
-                                elif 'temp' in current_template:
+                                elif "temp" in current_template:
                                     pv_name += ":TEMP"
 
-                        if 'DESC' in macros:
-                            description = macros['DESC']
-                        elif 'DESCRIPTION' in macros:
-                            description = macros['DESCRIPTION']
+                        if "DESC" in macros:
+                            description = macros["DESC"]
+                        elif "DESCRIPTION" in macros:
+                            description = macros["DESCRIPTION"]
 
-                        if 'EGU' in macros:
-                            egu = macros['EGU']
+                        if "EGU" in macros:
+                            egu = macros["EGU"]
 
                         if pv_name:
                             pv_info = PVInfo(
                                 pv_name=pv_name,
                                 source_file=file_path,
                                 template=current_template,
-                                pv_type=pv_type if 'pv_type' in locals() else 'status',
+                                pv_type=pv_type if "pv_type" in locals() else "status",
                                 description=description,
                                 engineering_units=egu,
-                                macros=macros
+                                macros=macros,
                             )
                             pvs.append(pv_info)
 
                             # Add related PVs (calc parameters for flow, etc.)
-                            if 'flow' in current_template.lower():
+                            if "flow" in current_template.lower():
                                 # Flow calculations have additional parameters
-                                for suffix in ['PBAR', 'DPMBAR', 'TEMP', 'DENSITY',
-                                             'Y', 'K', 'MW', 'BETA4', 'C', 'KS', 'Z']:
+                                for suffix in [
+                                    "PBAR",
+                                    "DPMBAR",
+                                    "TEMP",
+                                    "DENSITY",
+                                    "Y",
+                                    "K",
+                                    "MW",
+                                    "BETA4",
+                                    "C",
+                                    "KS",
+                                    "Z",
+                                ]:
                                     related_pv = PVInfo(
                                         pv_name=f"{pv_name.replace(':FLOW', '')}:{suffix}",
                                         source_file=file_path,
                                         template=current_template,
-                                        pv_type='calc',
-                                        description=f"{description} - {suffix}" if description else suffix,
-                                        macros=macros
+                                        pv_type="calc",
+                                        description=(
+                                            f"{description} - {suffix}"
+                                            if description
+                                            else suffix
+                                        ),
+                                        macros=macros,
                                     )
                                     pvs.append(related_pv)
 
@@ -308,17 +342,19 @@ class ArchiveManager:
         entries = []
 
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 lines = f.readlines()
 
             # Pattern for archive entries: PV_NAME PERIOD SCAN_TYPE
-            archive_pattern = re.compile(r'^([A-Z][A-Z0-9_:]+)\s+(\d+)\s+(scan|monitor)')
+            archive_pattern = re.compile(
+                r"^([A-Z][A-Z0-9_:]+)\s+(\d+)\s+(scan|monitor)"
+            )
 
             for i, line in enumerate(lines, 1):
                 line_stripped = line.strip()
 
                 # Skip comments and empty lines
-                if not line_stripped or line_stripped.startswith('#'):
+                if not line_stripped or line_stripped.startswith("#"):
                     continue
 
                 match = archive_pattern.match(line_stripped)
@@ -329,7 +365,7 @@ class ArchiveManager:
                         sampling_period=int(period),
                         sampling_method=method,
                         source_file=file_path,
-                        line_number=i
+                        line_number=i,
                     )
                     entries.append(entry)
 
@@ -338,8 +374,9 @@ class ArchiveManager:
 
         return entries
 
-    def analyze_coverage(self, substitution_files: List[str],
-                        archive_files: List[str]) -> Dict[str, Any]:
+    def analyze_coverage(
+        self, substitution_files: List[str], archive_files: List[str]
+    ) -> Dict[str, Any]:
         """Analyze PV coverage between substitution and archive files"""
         # Extract PVs from all substitution files
         all_pvs = {}
@@ -364,32 +401,34 @@ class ArchiveManager:
 
         coverage_percent = 0
         if defined_pvs:
-            coverage_percent = (len(archived_pvs & defined_pvs) / len(defined_pvs)) * 100
+            coverage_percent = (
+                len(archived_pvs & defined_pvs) / len(defined_pvs)
+            ) * 100
 
         return {
-            'total_pvs': len(defined_pvs),
-            'archived_pvs': len(archived_pvs),
-            'missing_pvs': list(missing_pvs),
-            'orphaned_pvs': list(orphaned_pvs),
-            'coverage_percent': round(coverage_percent, 2),
-            'pv_details': all_pvs,
-            'archive_entries': archive_entries
+            "total_pvs": len(defined_pvs),
+            "archived_pvs": len(archived_pvs),
+            "missing_pvs": list(missing_pvs),
+            "orphaned_pvs": list(orphaned_pvs),
+            "coverage_percent": round(coverage_percent, 2),
+            "pv_details": all_pvs,
+            "archive_entries": archive_entries,
         }
 
-    def generate_missing_archive_entries(self, coverage_analysis: Dict) -> List[ArchiveEntry]:
+    def generate_missing_archive_entries(
+        self, coverage_analysis: Dict
+    ) -> List[ArchiveEntry]:
         """Generate archive entries for missing PVs with optimized rates"""
         missing_entries = []
 
-        for pv_name in coverage_analysis['missing_pvs']:
-            pv_info = coverage_analysis['pv_details'].get(pv_name)
+        for pv_name in coverage_analysis["missing_pvs"]:
+            pv_info = coverage_analysis["pv_details"].get(pv_name)
 
             # Get optimal sampling configuration
             period, method = self.optimizer.get_sampling_config(pv_name, pv_info)
 
             entry = ArchiveEntry(
-                pv_name=pv_name,
-                sampling_period=period,
-                sampling_method=method
+                pv_name=pv_name, sampling_period=period, sampling_method=method
             )
             missing_entries.append(entry)
 
@@ -398,8 +437,9 @@ class ArchiveManager:
 
         return missing_entries
 
-    def generate_archive_file_content(self, entries: List[ArchiveEntry],
-                                     header: Optional[str] = None) -> str:
+    def generate_archive_file_content(
+        self, entries: List[ArchiveEntry], header: Optional[str] = None
+    ) -> str:
         """Generate archive file content from entries"""
         lines = []
 
@@ -408,7 +448,9 @@ class ArchiveManager:
             lines.append(header)
         else:
             lines.append(f"# Archive configuration file")
-            lines.append(f"# Generated by IOC Manager - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            lines.append(
+                f"# Generated by IOC Manager - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
             lines.append("#")
 
         # Group entries by type for better organization
@@ -429,17 +471,13 @@ class ArchiveManager:
                 for entry in type_entries:
                     lines.append(entry.to_string())
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def optimize_existing_archive(self, archive_file: str) -> Tuple[str, Dict]:
         """Optimize an existing archive file's sampling rates"""
         entries = self.extract_pvs_from_archive(archive_file)
         optimized_entries = []
-        changes = {
-            'rate_changes': [],
-            'method_changes': [],
-            'total_optimizations': 0
-        }
+        changes = {"rate_changes": [], "method_changes": [], "total_optimizations": 0}
 
         for entry in entries:
             # Get optimal configuration
@@ -450,30 +488,34 @@ class ArchiveManager:
             # Check if optimization needed
             changed = False
             if entry.sampling_period != optimal_period:
-                changes['rate_changes'].append({
-                    'pv': entry.pv_name,
-                    'old_rate': entry.sampling_period,
-                    'new_rate': optimal_period
-                })
+                changes["rate_changes"].append(
+                    {
+                        "pv": entry.pv_name,
+                        "old_rate": entry.sampling_period,
+                        "new_rate": optimal_period,
+                    }
+                )
                 changed = True
 
             if entry.sampling_method != optimal_method:
-                changes['method_changes'].append({
-                    'pv': entry.pv_name,
-                    'old_method': entry.sampling_method,
-                    'new_method': optimal_method
-                })
+                changes["method_changes"].append(
+                    {
+                        "pv": entry.pv_name,
+                        "old_method": entry.sampling_method,
+                        "new_method": optimal_method,
+                    }
+                )
                 changed = True
 
             if changed:
-                changes['total_optimizations'] += 1
+                changes["total_optimizations"] += 1
 
             # Create optimized entry
             optimized_entry = ArchiveEntry(
                 pv_name=entry.pv_name,
                 sampling_period=optimal_period,
                 sampling_method=optimal_method,
-                source_file=entry.source_file
+                source_file=entry.source_file,
             )
             optimized_entries.append(optimized_entry)
 
@@ -482,8 +524,9 @@ class ArchiveManager:
 
         return optimized_content, changes
 
-    def estimate_storage_impact(self, entries: List[ArchiveEntry],
-                               days: int = 30) -> Dict[str, Any]:
+    def estimate_storage_impact(
+        self, entries: List[ArchiveEntry], days: int = 30
+    ) -> Dict[str, Any]:
         """Estimate storage requirements for archive entries"""
         # Assumptions:
         # - Each archived value takes ~20 bytes (timestamp + value + metadata)
@@ -492,7 +535,7 @@ class ArchiveManager:
         total_samples_per_day = 0
 
         for entry in entries:
-            if entry.sampling_method == 'scan':
+            if entry.sampling_method == "scan":
                 # Scan mode: samples every N seconds
                 samples_per_day = (24 * 3600) / entry.sampling_period
             else:
@@ -505,13 +548,14 @@ class ArchiveManager:
         bytes_total = bytes_per_day * days
 
         return {
-            'pvs_count': len(entries),
-            'samples_per_day': int(total_samples_per_day),
-            'bytes_per_day': int(bytes_per_day),
-            'mb_per_day': round(bytes_per_day / (1024 * 1024), 2),
-            'gb_per_month': round((bytes_per_day * 30) / (1024 * 1024 * 1024), 2),
-            'total_storage_mb': round(bytes_total / (1024 * 1024), 2)
+            "pvs_count": len(entries),
+            "samples_per_day": int(total_samples_per_day),
+            "bytes_per_day": int(bytes_per_day),
+            "mb_per_day": round(bytes_per_day / (1024 * 1024), 2),
+            "gb_per_month": round((bytes_per_day * 30) / (1024 * 1024 * 1024), 2),
+            "total_storage_mb": round(bytes_total / (1024 * 1024), 2),
         }
+
 
 # Example usage
 if __name__ == "__main__":
@@ -540,8 +584,10 @@ if __name__ == "__main__":
     print(f"  Orphaned PVs: {len(coverage['orphaned_pvs'])}")
 
     # Generate missing entries
-    if coverage['missing_pvs']:
-        print(f"\nGenerating archive entries for {len(coverage['missing_pvs'])} missing PVs...")
+    if coverage["missing_pvs"]:
+        print(
+            f"\nGenerating archive entries for {len(coverage['missing_pvs'])} missing PVs..."
+        )
         missing_entries = manager.generate_missing_archive_entries(coverage)
 
         # Show first few
