@@ -109,7 +109,7 @@ import sys
 from pathlib import Path
 from typing import List
 
-from ioc_validation_engine import ValidationEngine, Severity
+from validation_engine import ValidationEngine, Severity
 from template_analyzer import TemplateAnalyzer
 
 

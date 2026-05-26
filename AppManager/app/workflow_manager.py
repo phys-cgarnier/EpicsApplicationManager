@@ -19,7 +19,7 @@ from enum import Enum
 import tempfile
 import shutil
 
-from ioc_validation_engine import (
+from validation_engine import (
     ValidationEngine,
     ValidationResult,
     ValidationIssue,
