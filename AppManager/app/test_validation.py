@@ -10,7 +10,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from ioc_validation_engine import ValidationEngine, Severity
+from validation_engine import ValidationEngine, Severity
 
 
 def test_validation():
