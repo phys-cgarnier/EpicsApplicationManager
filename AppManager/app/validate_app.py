@@ -111,7 +111,7 @@ from typing import List
 
 from validation_engine import ValidationEngine, Severity
 from template_analyzer import TemplateAnalyzer
-
+from reports import write_json_report, print_human_summary
 
 SUB_EXTS = {".substitutions", ".sub", ".vdb"}
 TEMPLATE_EXTS = {".db", ".template"}
@@ -122,7 +122,6 @@ SEVERITY_ORDER = {
     "warning": 2,
     "critical": 3,
 }
-
 
 def find_files(paths: List[str], recursive: bool, types: List[str]) -> List[tuple[Path, str]]:
     """Resolve paths (files, directories, or globs) and classify matches by EPICS file type.
@@ -191,86 +190,6 @@ def find_files(paths: List[str], recursive: bool, types: List[str]) -> List[tupl
 
     return sorted(out, key=lambda item: str(item[0]))
 
-
-def validate_template_file(path: Path, analyzer: TemplateAnalyzer) -> dict:
-    """
-    Validate/analyze a .db or .template file using TemplateAnalyzer.
-
-    This replaces the old simplified validate_template_basic() function.
-    """
-    template = analyzer.parse_file(path)
-
-    if template is None:
-        matching_errors = [
-            error for error in analyzer.errors if str(path) in error
-        ]
-
-        message = (
-            matching_errors[-1]
-            if matching_errors
-            else f"Failed to parse template file: {path}"
-        )
-
-        return {
-            "file_path": str(path),
-            "file_type": "template",
-            "passed": False,
-            "records": 0,
-            "macros": [],
-            "includes": [],
-            "issues": [
-                {
-                    "severity": Severity.CRITICAL.value,
-                    "message": message,
-                }
-            ],
-        }
-
-    issues = []
-
-    if not template.records:
-        issues.append(
-            {
-                "severity": Severity.WARNING.value,
-                "message": "No EPICS records found in template/db file",
-            }
-        )
-
-    for include_path in template.includes:
-        include_candidate = path.parent / include_path
-
-        if not include_candidate.exists():
-            issues.append(
-                {
-                    "severity": Severity.WARNING.value,
-                    "message": f"Included file does not exist: {include_path}",
-                }
-            )
-
-    return {
-        "file_path": str(path),
-        "file_type": "template",
-        "passed": not any(
-            issue.get("severity") == Severity.CRITICAL.value
-            for issue in issues
-        ),
-        "records": len(template.records),
-        "macros": sorted(template.macros),
-        "includes": template.includes,
-        "record_summary": [
-            {
-                "record_type": record.record_type,
-                "record_name": record.record_name,
-                "line_number": record.line_number,
-                "field_count": len(record.fields),
-                "fields": sorted(record.fields.keys()),
-            }
-            for record in template.records
-        ],
-        "issues": issues,
-    }
-
-
 def should_fail(results: list[dict], fail_on: str) -> bool:
     fail_level = SEVERITY_ORDER[fail_on]
 
@@ -282,74 +201,22 @@ def should_fail(results: list[dict], fail_on: str) -> bool:
 
     return False
 
-
-def write_json_report(payload: dict, output_path: str | None):
-    json_text = json.dumps(payload, indent=2)
-
-    if output_path:
-        path = Path(output_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json_text + "\n")
-    else:
-        print(json_text)
-
-
-def print_human_summary(results: list[dict]):
-    for result in results:
-        fp = result.get("file_path") or result.get("file") or "unknown"
-        file_type = result.get("file_type", "unknown")
-
-        print(f"\nFile: {fp}")
-        print(f"  Type: {file_type}")
-
-        if "error" in result:
-            print(f"  ERROR: {result['error']}")
-            continue
-
-        if "passed" in result:
-            print(f"  PASSED: {result['passed']}")
-
-        if file_type == "template":
-            print(f"  Records: {result.get('records', 0)}")
-            print(f"  Macros: {len(result.get('macros', []))}")
-            print(f"  Includes: {len(result.get('includes', []))}")
-
-        issues = result.get("issues", [])
-
-        print(f"  Total issues: {len(issues)}")
-
-        critical_count = len(
-            [i for i in issues if i.get("severity") == Severity.CRITICAL.value]
-        )
-        warning_count = len(
-            [i for i in issues if i.get("severity") == Severity.WARNING.value]
-        )
-
-        print(f"  Critical: {critical_count}")
-        print(f"  Warnings: {warning_count}")
-
-        for issue in issues:
-            print(f"   - {issue.get('severity')}: {issue.get('message')}")
-
-
 def main():
     parser = argparse.ArgumentParser(
-        description="Validate EPICS application files"
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-
     parser.add_argument(
         "paths",
         nargs="+",
         help="Files, directories, or glob patterns",
     )
-
     parser.add_argument(
         "--recursive",
         "-r",
         action="store_true",
         help="Recurse into directories",
     )
-
     parser.add_argument(
         "--types",
         "-t",
@@ -358,44 +225,35 @@ def main():
         choices=["substitution", "template", "archive", "all"],
         help="Types to validate",
     )
-
     parser.add_argument(
         "--json",
         action="store_true",
         help="Output JSON",
-    )
-
+    )  
     parser.add_argument(
         "--output",
         "-o",
         help="Write JSON output to this file. Requires --json.",
     )
-
+    parser.add_argument(
+        "--min-severity",
+        choices=["critical", "warning", "info"],
+        default="warning",
+        help="Only include issues at or above this severity in the JSON report",
+    )
     parser.add_argument(
         "--fail-on",
         choices=["critical", "warning", "info"],
         default="critical",
         help="Smallest severity that causes a nonzero exit code",
     )
-
     parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
         help="Print discovered files before validation",
     )
-
-    parser.add_argument(
-        "--help-full",
-        action="store_true",
-        help="Show extended help (embedded in the module docstring) and exit",
-    )
-
     args = parser.parse_args()
-
-    if getattr(args, "help_full", False):
-        print(__doc__)
-        sys.exit(0)
 
     if args.output and not args.json:
         parser.error("--output/-o requires --json")
@@ -432,7 +290,7 @@ def main():
             results.append(result)
 
         elif ftype == "template":
-            result = validate_template_file(fpath, template_analyzer)
+            result = template_analyzer.validate_template_file(fpath)
             results.append(result)
 
     payload = {
@@ -440,7 +298,7 @@ def main():
     }
 
     if args.json:
-        write_json_report(payload, args.output)
+        write_json_report(payload, args.output, min_severity=args.min_severity)
     else:
         print_human_summary(results)
 
