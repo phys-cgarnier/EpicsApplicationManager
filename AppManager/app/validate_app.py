@@ -2,22 +2,109 @@
 """
 Validate an EPICS application directory or selected files.
 
-This is the production-facing app-level validator entry point.
+This module is the production-facing app-level validator entry point.
 
-Current capabilities:
-  - substitution validation through ValidationEngine
-  - archive validation through ValidationEngine
-  - template/db parsing through TemplateAnalyzer
-  - JSON output to stdout or file
+Extended help
+-------------
 
-Usage:
-  python AppManager/app/validate_app.py BpmSoft --recursive --types all
-  python AppManager/app/validate_app.py BpmSoft --recursive --types all --json
-  python AppManager/app/validate_app.py BpmSoft --recursive --types all --json -o validation_report.json
+This file contains an embedded, extended help description of the parser
+and repository functionality. Use the `--help-full` flag to print this
+extended help and exit.
+
+Purpose
+    - Validate EPICS application files: substitution files, template/db
+        files, and archive files.
+    - Produce human-friendly summaries or machine-readable JSON suitable
+        for CI consumption.
+
+Key components
+    - AppManager/app/validate_app.py: CLI entrypoint that discovers files,
+        classifies them, runs appropriate validators/analyzers, and emits
+        either a human summary or a JSON payload.
+    - AppManager/app/template_analyzer.py: Template parsing/analysis logic
+        used to extract records, fields, macros, includes, and parsing
+        errors from `.db`/`.template` files.
+    - AppManager/app/ioc_validation_engine.py (imported as
+        `ioc_validation_engine`): Provides `ValidationEngine` used to validate
+        substitution and archive files and exposes a `Severity` enum used in
+        reports.
+    - AppManager/scripts/: Helper scripts for producing annotations and
+        summarizing reports.
+    - AppManager/tools/: Lower-level helpers used by the application and
+        analyzers (archive/backup managers, consolidators, etc.).
+    - tests/: Unit and integration tests. Run with `pytest` from the repo
+        root.
+
+File discovery and classification
+    - Input `paths` may be files, directories, or glob patterns.
+    - Directories are optionally scanned recursively with `-r/--recursive`.
+    - Files are classified by extension into three categories:
+        * Substitution: `.substitutions`, `.sub`, `.vdb`
+        * Template: `.db`, `.template`
+        * Archive: `.archive`, `.txt`
+
+Template parsing behavior
+    - `TemplateAnalyzer` parses `.db` and `.template` files to build a
+        `template` object (or returns `None` on parse failure).
+    - Collected metadata includes:
+        * `records`: list of record objects with `record_type`,
+            `record_name`, `line_number`, and `fields`.
+        * `macros`: set/list of macros used in the template.
+        * `includes`: list of included filenames referenced by the template.
+        * `errors`: parse errors captured while analyzing the file.
+    - If parsing fails, the analyzer populates an error message and this
+        CLI reports a CRITICAL issue for that file.
+    - The analyzer warns when an included file cannot be found relative
+        to the template file's directory.
+
+Substitution & archive validation
+    - Substitution and archive files are validated via `ValidationEngine`.
+    - Validation results are converted to JSON and merged with file
+        metadata (file path and file type) by the CLI.
+
+CLI usage (examples)
+    python AppManager/app/validate_app.py BpmSoft --recursive --types all
+    python AppManager/app/validate_app.py BpmSoft --recursive --types all --json
+    python AppManager/app/validate_app.py BpmSoft --recursive --types all --json -o validation_report.json
+
+Options summary
+    - `paths` (positional): Files, directories, or glob patterns to validate.
+    - `-r, --recursive`: Recurse into directories when discovering files.
+    - `-t, --types`: Which types to validate (choices: `substitution`,
+        `template`, `archive`, `all`). Default: `substitution template`.
+    - `--json`: Emit JSON instead of a human-readable summary.
+    - `-o, --output`: Write JSON output to a file (requires `--json`).
+    - `--fail-on`: Smallest severity that causes non-zero exit. Choices:
+        `critical`, `warning`, `info`. Default: `critical`.
+    - `-v, --verbose`: Print discovered files to stderr and enable verbose
+        analyzer output.
+    - `--help-full`: Show this extended help text and exit.
+
+Exit codes
+    - `0`: Success and no issue meets or exceeds the `--fail-on` threshold.
+    - `1`: One or more issues meet or exceed the `--fail-on` threshold.
+    - `2`: No files found matching the requested types/paths.
+
+JSON output schema
+    - Top-level object with a `results` array. Each element represents one
+        file and contains keys such as `file_path`, `file_type`, `passed`,
+        and `issues`.
+    - Template-specific fields include `records`, `macros`, `includes`,
+        and `record_summary` (summarized record metadata).
+
+Troubleshooting & tips
+    - Use `-v/--verbose` to see discovered files and extra analyzer output.
+    - If parsing fails, inspect `TemplateAnalyzer.errors` and re-run with
+        `--help-full` or `-v` to get more context.
+
+Use `--json` in CI to consume structured results and fail builds using
+the `--fail-on` threshold.
 """
 
 import argparse
+import glob
 import json
+import os
 import sys
 from pathlib import Path
 from typing import List
@@ -37,16 +124,30 @@ SEVERITY_ORDER = {
 }
 
 
-def find_files(paths: List[str], recursive: bool, types: List[str]):
+def find_files(paths: List[str], recursive: bool, types: List[str]) -> List[tuple[Path, str]]:
+    """Resolve paths (files, directories, or globs) and classify matches by EPICS file type.
+
+    Args:
+        paths: File paths, directory paths, or glob patterns to search.
+        recursive: If True, recurse into subdirectories.
+        types: File categories to include — any combination of
+               "substitution", "template", "archive", or "all".
+
+    Returns:
+        Sorted list of (path, category) tuples for every matching file.
+    """
     files = []
 
     for p in paths:
-        pth = Path(p)
+        # Expand user (~) and environment variables
+        p_expanded = os.path.expanduser(os.path.expandvars(p))
+        pth = Path(p_expanded)
 
         if pth.is_file():
             files.append(pth)
+            continue
 
-        elif pth.is_dir():
+        if pth.is_dir():
             if recursive:
                 for f in pth.rglob("*"):
                     if f.is_file():
@@ -55,12 +156,16 @@ def find_files(paths: List[str], recursive: bool, types: List[str]):
                 for f in pth.iterdir():
                     if f.is_file():
                         files.append(f)
+            continue
 
-        else:
-            # Treat as glob.
-            for f in Path(".").glob(p):
-                if f.is_file():
-                    files.append(f)
+        # Treat as glob pattern. Use the stdlib glob module which supports
+        # absolute and non-relative patterns, and expands '**' when
+        # recursive=True.
+        matches = glob.glob(p_expanded, recursive=recursive)
+        for m in matches:
+            f = Path(m)
+            if f.is_file():
+                files.append(f)
 
     out = []
 
@@ -280,7 +385,17 @@ def main():
         help="Print discovered files before validation",
     )
 
+    parser.add_argument(
+        "--help-full",
+        action="store_true",
+        help="Show extended help (embedded in the module docstring) and exit",
+    )
+
     args = parser.parse_args()
+
+    if getattr(args, "help_full", False):
+        print(__doc__)
+        sys.exit(0)
 
     if args.output and not args.json:
         parser.error("--output/-o requires --json")
