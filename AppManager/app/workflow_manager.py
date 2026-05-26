@@ -19,13 +19,13 @@ from enum import Enum
 import tempfile
 import shutil
 
-from ioc_validation_engine import (
+from validation_engine import (
     ValidationEngine,
     ValidationResult,
     ValidationIssue,
     Severity,
 )
-from ioc_backup_manager import BackupManager
+from backup_manager import BackupManager
 
 
 class WorkflowStatus(Enum):

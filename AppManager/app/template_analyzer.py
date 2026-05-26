@@ -28,6 +28,7 @@ from collections import defaultdict
 import difflib
 import json
 from datetime import datetime
+from validation_engine import Severity
 
 
 
@@ -354,6 +355,67 @@ class TemplateAnalyzer:
         )
 
         return template
+
+    def validate_template_file(self, filepath: Path) -> dict:
+        """Validate a template file and return a JSON-serializable summary.
+
+        This mirrors the previous logic that lived in the CLI module but
+        keeps parsing and validation co-located in the analyzer.
+        """
+        template = self.parse_file(filepath)
+
+        if template is None:
+            matching_errors = [err for err in self.errors if str(filepath) in err]
+            message = matching_errors[-1] if matching_errors else f"Failed to parse template file: {filepath}"
+
+            return {
+                "file_path": str(filepath),
+                "file_type": "template",
+                "passed": False,
+                "records": 0,
+                "macros": [],
+                "includes": [],
+                "issues": [
+                    {
+                        "severity": Severity.CRITICAL.value,
+                        "message": message,
+                    }
+                ],
+            }
+
+        issues = []
+
+        if not template.records:
+            issues.append(
+                {
+                    "severity": Severity.WARNING.value,
+                    "message": "No EPICS records found in template/db file",
+                }
+            )
+
+        for include_path in template.includes:
+            include_candidate = template.filepath.parent / include_path
+            if not include_candidate.exists():
+                issues.append(
+                    {
+                        "severity": Severity.WARNING.value,
+                        "message": f"Included file does not exist: {include_path}",
+                    }
+                )
+
+        result = {
+            "file_path": str(template.filepath),
+            "file_type": "template",
+            "passed": not any(
+                issue.get("severity") == Severity.CRITICAL.value for issue in issues
+            ),
+            "records": len(template.records),
+            "macros": sorted(template.macros),
+            "includes": template.includes,
+            "issues": issues,
+        }
+
+        return result
 
     # -------------------------------------------------------------------------
     # DIRECTORY SCANNING
